@@ -122,6 +122,15 @@ To democratize access to government services and information for rural communiti
 
 ### 🚀 **Essential APIs (Get these first - 15 minutes total)**
 
+#### 1. **MURF API** (Required for STT/TTS)
+- **Website**: [https://murf.ai/api/login]
+- **Cost**: Free tier available
+- **Setup**: 
+  1. Go to MURF API
+  2. Create API key/ Generate Api Key
+  3. Login details
+  4. Add to `.env`: `VITE_MURF_API_KEY=your_key`
+ 
 #### 1. **Google Gemini AI** (Required for AI features)
 - **Website**: https://makersuite.google.com/app/apikey
 - **Cost**: Free tier available
