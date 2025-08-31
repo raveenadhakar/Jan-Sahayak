@@ -11,7 +11,7 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.0+-teal?style=flat-square&logo=tailwindcss)](https://tailwindcss.com/)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 
-[�e Live Demo](#) | [📖 Documentation](#) | [🤝 Contributing](#contributing) | [📞 Support](#support)
+[�e Live](https://jan-sahayak.onrender.com) | [📖 Documentation](#) | [🤝 Contributing](#contributing) | [📞 Support](#support)
 
 </div>
 
@@ -83,6 +83,7 @@ To democratize access to government services and information for rural communiti
 
 2. **Install dependencies**
    ```bash
+   npm create vite@latest.
    npm install
    ```
 
@@ -97,6 +98,7 @@ To democratize access to government services and information for rural communiti
    VITE_GEMINI_API_KEY=your_gemini_api_key
    VITE_OPENWEATHER_API_KEY=your_openweather_key
    VITE_NEWS_API_KEY=your_news_api_key
+   VITE_MURF_API_KEY=your_murf_api_key
    
    # Optional APIs (Enhance functionality)
    VITE_WEATHER_API_KEY=your_weather_api_key
@@ -121,6 +123,15 @@ To democratize access to government services and information for rural communiti
 
 ### 🚀 **Essential APIs (Get these first - 15 minutes total)**
 
+#### 1. **MURF API** (Required for STT/TTS)
+- **Website**: [https://murf.ai/api/login]
+- **Cost**: Free tier available
+- **Setup**: 
+  1. Go to MURF API
+  2. Create API key/ Generate Api Key
+  3. Login details
+  4. Add to `.env`: `VITE_MURF_API_KEY=your_key`
+ 
 #### 1. **Google Gemini AI** (Required for AI features)
 - **Website**: https://makersuite.google.com/app/apikey
 - **Cost**: Free tier available
