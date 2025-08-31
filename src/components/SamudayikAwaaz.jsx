@@ -490,142 +490,7 @@ const SamudayikAwaaz = () => {
         </button>
     );
 
-    // Enhanced Voice Interface for MUrf AI Challenge
-    const VoiceButton = () => (
-        <div className="fixed bottom-24 right-6 z-50">
-            {/* Main Voice Button */}
-            <button
-                onClick={toggleVoiceRecording}
-                className={`w-20 h-20 rounded-full shadow-2xl flex items-center justify-center transition-all transform border-4 ${isListening
-                    ? 'bg-red-500 hover:bg-red-600 scale-110 animate-pulse border-red-300'
-                    : 'bg-gradient-to-br from-blue-500 to-purple-600 hover:scale-105 border-blue-300'
-                    }`}
-            >
-                {isListening ? (
-                    <div className="flex space-x-1">
-                        <div className="w-2 h-8 bg-white rounded-full animate-bounce"></div>
-                        <div className="w-2 h-6 bg-white rounded-full animate-bounce delay-75"></div>
-                        <div className="w-2 h-8 bg-white rounded-full animate-bounce delay-150"></div>
-                    </div>
-                ) : (
-                    <Mic className="w-10 h-10 text-white" />
-                )}
-            </button>
 
-            {/* Voice Mode Toggle */}
-            <button
-                onClick={() => setIsVoiceMode(!isVoiceMode)}
-                className={`absolute -top-16 right-0 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all ${isVoiceMode
-                    ? 'bg-green-500 text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-100'
-                    }`}
-                title={isVoiceMode ? 'Voice Mode ON' : 'Voice Mode OFF'}
-            >
-                {isVoiceMode ? <Volume2 className="w-6 h-6" /> : <VolumeX className="w-6 h-6" />}
-            </button>
-
-            {/* Voice History Button */}
-            {voiceConversationHistory.length > 0 && (
-                <button
-                    onClick={() => setShowVoiceHistory(true)}
-                    className="absolute -top-32 right-0 w-12 h-12 rounded-full shadow-lg bg-white text-gray-600 hover:bg-gray-100 flex items-center justify-center transition-all"
-                    title="Voice Conversation History"
-                >
-                    <MessageSquare className="w-6 h-6" />
-                    <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                        {voiceConversationHistory.length}
-                    </span>
-                </button>
-            )}
-
-            {/* Enhanced Voice Feedback */}
-            {isListening && (
-                <div className="absolute -top-24 right-24 bg-white rounded-2xl p-4 shadow-xl min-w-80 border-2 border-blue-200">
-                    <div className="flex items-center space-x-3 mb-3">
-                        <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-                        <span className="text-lg text-red-600 font-bold">{t.listening}</span>
-                        <div className="ml-auto text-xs text-gray-500">
-                            {selectedLanguage === 'hi' && 'हिंदी में बोलें'}
-                            {selectedLanguage === 'en' && 'Speak in English'}
-                            {selectedLanguage === 'ur' && 'اردو میں بولیں'}
-                        </div>
-                    </div>
-                    {transcript && (
-                        <div className="mb-3">
-                            <p className="text-sm font-semibold text-gray-700 mb-1">{t.youSaid}</p>
-                            <p className="text-sm text-gray-600 italic bg-gray-50 p-2 rounded">"{transcript}"</p>
-                        </div>
-                    )}
-                    {isProcessing && (
-                        <div className="mb-3">
-                            <p className="text-sm font-semibold text-blue-700 mb-1">{t.janSahayak}</p>
-                            <p className="text-sm text-blue-600 bg-blue-50 p-2 rounded">{t.preparing}</p>
-                        </div>
-                    )}
-                    <div className="flex items-center justify-between">
-                        <p className="text-xs text-gray-500">{t.startVoice}</p>
-                        <div className="flex space-x-2">
-                            <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">
-                                {selectedLanguage === 'hi' && 'मौसम'}
-                                {selectedLanguage === 'en' && 'Weather'}
-                                {selectedLanguage === 'ur' && 'موسم'}
-                            </span>
-                            <span className="text-xs bg-green-100 text-green-600 px-2 py-1 rounded">
-                                {selectedLanguage === 'hi' && 'योजना'}
-                                {selectedLanguage === 'en' && 'Schemes'}
-                                {selectedLanguage === 'ur' && 'اسکیم'}
-                            </span>
-                            <span className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded">
-                                {selectedLanguage === 'hi' && 'शिकायत'}
-                                {selectedLanguage === 'en' && 'Complaint'}
-                                {selectedLanguage === 'ur' && 'شکایت'}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* AI Response Display */}
-            {aiResponse && !isListening && (
-                <div className="absolute -top-20 right-24 bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-4 shadow-xl min-w-80 border-2 border-purple-200">
-                    <div className="flex items-center space-x-3 mb-3">
-                        <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                            <Sparkles className="w-4 h-4 text-white" />
-                        </div>
-                        <span className="text-lg font-bold text-purple-700">{t.janSahayak}</span>
-                        <button
-                            onClick={() => speakText(aiResponse, 'ai-response')}
-                            className={`ml-auto p-1 rounded-full transition-all ${isSpeaking && currentSpeakingId === 'ai-response'
-                                ? 'bg-red-100 text-red-600'
-                                : 'bg-purple-100 text-purple-600 hover:bg-purple-200'
-                                }`}
-                        >
-                            {isSpeaking && currentSpeakingId === 'ai-response' ? 
-                                <VolumeX className="w-4 h-4" /> : 
-                                <Volume2 className="w-4 h-4" />
-                            }
-                        </button>
-                    </div>
-                    <p className="text-sm text-gray-700 bg-white p-3 rounded-lg shadow-sm">{aiResponse}</p>
-                    <div className="mt-3 flex justify-between items-center">
-                        <button
-                            onClick={() => setAiResponse('')}
-                            className="text-xs text-gray-500 hover:text-gray-700"
-                        >
-                            {selectedLanguage === 'hi' && 'बंद करें'}
-                            {selectedLanguage === 'en' && 'Close'}
-                            {selectedLanguage === 'ur' && 'بند کریں'}
-                        </button>
-                        <span className="text-xs text-gray-400">
-                            {selectedLanguage === 'hi' && 'MUrf AI द्वारा संचालित'}
-                            {selectedLanguage === 'en' && 'Powered by MUrf AI'}
-                            {selectedLanguage === 'ur' && 'MUrf AI کے ذریعے'}
-                        </span>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
 
     const ComplaintButton = () => (
         <div className="fixed bottom-24 left-6 z-50">
@@ -1315,30 +1180,15 @@ const SamudayikAwaaz = () => {
                             <span className="font-semibold">1800-180-1551</span>
                         </a>
                         
-                        <div className="flex items-center space-x-2">
-                            <button
-                                onClick={() => {
-                                    setVoiceAgentMode('modal');
-                                    setShowVoiceAgent(true);
-                                }}
-                                className="btn-secondary bg-white text-primary hover:bg-gray-50 flex items-center space-x-2"
-                            >
-                                <span className="text-xl">🎤</span>
-                                <span className="font-medium">
-                                    {selectedLanguage === 'hi' ? 'मोडल' : selectedLanguage === 'en' ? 'Modal' : 'موڈل'}
-                                </span>
-                            </button>
-                            
-                            <button
-                                onClick={() => setActiveTab('voiceagent')}
-                                className="btn-primary bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 flex items-center space-x-2"
-                            >
-                                <span className="text-2xl">🎤</span>
-                                <span className="font-semibold">
-                                    {selectedLanguage === 'hi' ? 'आवाज़ सहायक' : selectedLanguage === 'en' ? 'Voice Agent' : 'آواز معاون'}
-                                </span>
-                            </button>
-                        </div>
+                        <button
+                            onClick={() => setActiveTab('voiceagent')}
+                            className="btn-primary bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 flex items-center space-x-2"
+                        >
+                            <span className="text-2xl">🎤</span>
+                            <span className="font-semibold">
+                                {selectedLanguage === 'hi' ? 'आवाज़ सहायक' : selectedLanguage === 'en' ? 'Voice Agent' : 'آواز معاون'}
+                            </span>
+                        </button>
                     </div>
                 </div>
             </div>
