@@ -11,7 +11,7 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.0+-teal?style=flat-square&logo=tailwindcss)](https://tailwindcss.com/)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 
-[�e Live Demo](#) | [📖 Documentation](#) | [🤝 Contributing](#contributing) | [📞 Support](#support)
+[�e Live](https://jan-sahayak.onrender.com) | [📖 Documentation](#) | [🤝 Contributing](#contributing) | [📞 Support](#support)
 
 </div>
 
@@ -97,6 +97,7 @@ To democratize access to government services and information for rural communiti
    VITE_GEMINI_API_KEY=your_gemini_api_key
    VITE_OPENWEATHER_API_KEY=your_openweather_key
    VITE_NEWS_API_KEY=your_news_api_key
+   VITE_MURF_API_KEY=your_murf_api_key
    
    # Optional APIs (Enhance functionality)
    VITE_WEATHER_API_KEY=your_weather_api_key
