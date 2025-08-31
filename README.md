@@ -83,6 +83,7 @@ To democratize access to government services and information for rural communiti
 
 2. **Install dependencies**
    ```bash
+   npm create vite@latest.
    npm install
    ```
 
