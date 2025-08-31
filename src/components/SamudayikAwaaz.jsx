@@ -5,21 +5,26 @@ import {
     Calendar, MapPin, FileText, CheckCircle, Wheat,
     Shield, Gift, HelpCircle, LogIn, LogOut, Play, Pause,
     Sparkles, TrendingUp, AlertTriangle, Users, Building2,
-    Sun, Cloud, Droplets, Wind, Star, Award
+    Sun, Cloud, Droplets, Wind, Star, Award, User
 } from 'lucide-react';
 import { geminiService } from '../services/geminiService';
 import { speechService } from '../services/speechService';
 import { authService } from '../services/authService';
-import Dashboard from './Dashboard';
+import { notificationService } from '../services/notificationService';
+import ImprovedDashboard from './ImprovedDashboard';
 import ComplaintsManager from './ComplaintsManager';
 import GovernmentSchemes from './GovernmentSchemes';
-import VillageVoice from './VillageVoice';
+import EnhancedVillageVoice from './EnhancedVillageVoice';
 import AuthModal from './AuthModal';
+import NotificationPanel from './NotificationPanel';
+import QuickComplaintForm from './QuickComplaintForm';
+import OfficialsContact from './OfficialsContact';
 
 const SamudayikAwaaz = () => {
     const [activeTab, setActiveTab] = useState('home');
     const [isConnected, setIsConnected] = useState(false);
-    const [notifications, setNotifications] = useState(3);
+    const [notifications, setNotifications] = useState(0);
+    const [showNotifications, setShowNotifications] = useState(false);
     const [selectedLanguage, setSelectedLanguage] = useState('hi');
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [userInfo, setUserInfo] = useState({
@@ -38,6 +43,8 @@ const SamudayikAwaaz = () => {
     const [isProcessing, setIsProcessing] = useState(false);
     const [recognition, setRecognition] = useState(null);
     const [error, setError] = useState(null);
+    const [showQuickComplaint, setShowQuickComplaint] = useState(false);
+    const [showOfficialsContact, setShowOfficialsContact] = useState(false);
 
     // Language translations
     const translations = {
@@ -166,12 +173,23 @@ const SamudayikAwaaz = () => {
             if (currentUser) {
                 setUserInfo(currentUser);
                 setIsLoggedIn(true);
+                // Load notification count
+                const unreadCount = notificationService.getUnreadCount(currentUser.id);
+                setNotifications(unreadCount);
             }
         } catch (error) {
             console.error('Error loading user data:', error);
             setError('Failed to load user data');
         }
     }, []);
+
+    // Update notification count when user logs in
+    useEffect(() => {
+        if (isLoggedIn && userInfo.id) {
+            const unreadCount = notificationService.getUnreadCount(userInfo.id);
+            setNotifications(unreadCount);
+        }
+    }, [isLoggedIn, userInfo]);
 
     // Initialize speech recognition
     useEffect(() => {
@@ -250,19 +268,66 @@ const SamudayikAwaaz = () => {
         try {
             // Check for navigation commands first
             const lowerCommand = command.toLowerCase();
+            let response = '';
+            let shouldNavigate = false;
 
-            if (lowerCommand.includes('शिकायत') || lowerCommand.includes('complaint') || lowerCommand.includes('شکایت')) {
-                setActiveTab('complaints');
-            } else if (lowerCommand.includes('योजना') || lowerCommand.includes('scheme') || lowerCommand.includes('اسکیم')) {
-                setActiveTab('rights');
-            } else if (lowerCommand.includes('ग्रामवाणी') || lowerCommand.includes('village') || lowerCommand.includes('گاؤں')) {
-                setActiveTab('gramvaani');
-            } else if (lowerCommand.includes('होम') || lowerCommand.includes('home') || lowerCommand.includes('ہوم')) {
+            // Weather related queries
+            if (lowerCommand.includes('मौसम') || lowerCommand.includes('weather') || lowerCommand.includes('موسم') || 
+                lowerCommand.includes('आज का मौसम') || lowerCommand.includes('aaj ka mausam')) {
+                response = selectedLanguage === 'hi' ? 'आज मुज़फ्फरनगर में हल्की बारिश की संभावना है। तापमान 28°C है। मैं आपको मौसम सेक्शन पर ले जा रहा हूं।' :
+                          selectedLanguage === 'en' ? 'Today in Muzaffarnagar, there is a chance of light rain. Temperature is 28°C. Taking you to weather section.' :
+                          'آج مظفر نگر میں ہلکی بارش کا امکان ہے۔ درجہ حرارت 28°C ہے۔ آپ کو موسمی سیکشن میں لے جا رہا ہوں۔';
                 setActiveTab('home');
+                shouldNavigate = true;
+            }
+            // Complaint related queries
+            else if (lowerCommand.includes('शिकायत') || lowerCommand.includes('complaint') || lowerCommand.includes('شکایت')) {
+                response = selectedLanguage === 'hi' ? 'मैं आपको शिकायत सेक्शन पर ले जा रहा हूं। यहां आप अपनी समस्या दर्ज कर सकते हैं।' :
+                          selectedLanguage === 'en' ? 'Taking you to complaints section. Here you can register your issues.' :
+                          'آپ کو شکایات کے سیکشن میں لے جا رہا ہوں۔ یہاں آپ اپنی شکایت درج کر سکتے ہیں۔';
+                setActiveTab('complaints');
+                shouldNavigate = true;
+            }
+            // Schemes related queries
+            else if (lowerCommand.includes('योजना') || lowerCommand.includes('scheme') || lowerCommand.includes('اسکیم') ||
+                     lowerCommand.includes('सरकारी योजना') || lowerCommand.includes('yojana')) {
+                response = selectedLanguage === 'hi' ? 'मैं आपको सरकारी योजनाओं के सेक्शन पर ले जा रहा हूं। यहां आप PM-KISAN, आयुष्मान भारत जैसी योजनाओं की जानकारी देख सकते हैं।' :
+                          selectedLanguage === 'en' ? 'Taking you to government schemes section. Here you can see information about PM-KISAN, Ayushman Bharat and other schemes.' :
+                          'آپ کو سرکاری اسکیموں کے سیکشن میں لے جا رہا ہوں۔ یہاں آپ پی ایم کسان، آیوشمان بھارت جیسی اسکیموں کی معلومات دیکھ سکتے ہیں۔';
+                setActiveTab('rights');
+                shouldNavigate = true;
+            }
+            // Village voice related queries
+            else if (lowerCommand.includes('ग्रामवाणी') || lowerCommand.includes('village') || lowerCommand.includes('گاؤں') ||
+                     lowerCommand.includes('गांव की आवाज') || lowerCommand.includes('gram vaani')) {
+                response = selectedLanguage === 'hi' ? 'मैं आपको ग्रामवाणी सेक्शन पर ले जा रहा हूं। यहां आप गांव की खबरें और घोषणाएं सुन सकते हैं।' :
+                          selectedLanguage === 'en' ? 'Taking you to Village Voice section. Here you can listen to village news and announcements.' :
+                          'آپ کو گرام وانی سیکشن میں لے جا رہا ہوں۔ یہاں آپ گاؤں کی خبریں اور اعلانات سن سکتے ہیں۔';
+                setActiveTab('gramvaani');
+                shouldNavigate = true;
+            }
+            // Home related queries
+            else if (lowerCommand.includes('होम') || lowerCommand.includes('home') || lowerCommand.includes('ہوم') ||
+                     lowerCommand.includes('मुख्य पृष्ठ') || lowerCommand.includes('dashboard')) {
+                response = selectedLanguage === 'hi' ? 'मैं आपको होम पेज पर ले जा रहा हूं।' :
+                          selectedLanguage === 'en' ? 'Taking you to home page.' :
+                          'آپ کو ہوم پیج پر لے جا رہا ہوں۔';
+                setActiveTab('home');
+                shouldNavigate = true;
+            }
+            // Generic greeting or unclear command
+            else {
+                // Try to get AI response for other queries
+                try {
+                    response = await geminiService.processVoiceCommand(command, selectedLanguage, userInfo);
+                } catch (aiError) {
+                    console.error('AI service error:', aiError);
+                    response = selectedLanguage === 'hi' ? 'मैं आपकी मदद करने के लिए यहां हूं। आप मुझसे मौसम, सरकारी योजनाओं, शिकायत दर्ज करने या गांव की खबरों के बारे में पूछ सकते हैं।' :
+                              selectedLanguage === 'en' ? 'I am here to help you. You can ask me about weather, government schemes, filing complaints, or village news.' :
+                              'میں آپ کی مدد کے لیے یہاں ہوں۔ آپ مجھ سے موسم، سرکاری اسکیمیں، شکایت درج کرنے یا گاؤں کی خبروں کے بارے میں پوچھ سکتے ہیں۔';
+                }
             }
 
-            // Get AI response
-            const response = await geminiService.processVoiceCommand(command, selectedLanguage, userInfo);
             setAiResponse(response);
 
             // Speak the response
@@ -270,9 +335,9 @@ const SamudayikAwaaz = () => {
 
         } catch (error) {
             console.error('Error processing voice command:', error);
-            const errorMessage = selectedLanguage === 'hi' ? 'माफ करें, मुझे समझने में समस्या हुई।' :
-                selectedLanguage === 'en' ? 'Sorry, I had trouble understanding.' :
-                    'معاف کریں، مجھے سمجھنے میں مسئلہ ہوا۔';
+            const errorMessage = selectedLanguage === 'hi' ? 'माफ करें, मुझे समझने में समस्या हुई। कृपया दोबारा कोशिश करें।' :
+                selectedLanguage === 'en' ? 'Sorry, I had trouble understanding. Please try again.' :
+                    'معاف کریں، مجھے سمجھنے میں مسئلہ ہوا۔ براہ کرم دوبارہ کوشش کریں۔';
             setAiResponse(errorMessage);
             setError('Voice command processing failed');
             await speechService.textToSpeech(errorMessage, selectedLanguage);
@@ -325,23 +390,23 @@ const SamudayikAwaaz = () => {
         }
     };
 
-    const TabButton = ({ id, icon, label, count }) => (
+    const TabButton = ({ id, label, emoji, count }) => (
         <button
             onClick={() => setActiveTab(id)}
-            className={`flex flex-col items-center p-4 rounded-2xl transition-all transform border-2 ${activeTab === id
-                ? 'bg-gradient-to-br from-blue-500 to-purple-600 text-white shadow-xl scale-105 border-blue-300'
-                : 'text-gray-600 hover:bg-gray-50 hover:scale-102 border-gray-200 bg-white'
+            className={`flex flex-col items-center p-4 rounded-xl transition-all focus-ring ${activeTab === id
+                ? 'bg-gradient-primary text-white shadow-clean-lg'
+                : 'text-secondary hover:bg-accent hover:text-primary bg-primary'
                 }`}
         >
-            <div className="relative">
-                {icon}
-                {count && (
-                    <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center animate-bounce">
-                        {count}
+            <div className="relative mb-2">
+                <span className="text-3xl">{emoji}</span>
+                {count > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center animate-pulse font-bold">
+                        {count > 9 ? '9+' : count}
                     </span>
                 )}
             </div>
-            <span className="text-sm mt-2 font-bold">{label}</span>
+            <span className="text-caption font-semibold text-center leading-tight">{label}</span>
         </button>
     );
 
@@ -379,85 +444,193 @@ const SamudayikAwaaz = () => {
         </div>
     );
 
+    const ComplaintButton = () => (
+        <div className="fixed bottom-24 left-6 z-50">
+            <button
+                onClick={() => {
+                    if (isLoggedIn) {
+                        setShowQuickComplaint(true);
+                    } else {
+                        setShowLogin(true);
+                    }
+                }}
+                className="voice-btn bg-gradient-danger"
+                title={isLoggedIn ? t.fileComplaint : t.login}
+            >
+                <FileText className="icon-lg text-white" />
+            </button>
+            <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-2 py-1 rounded-lg text-xs font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                {isLoggedIn ? t.fileComplaint : t.login}
+            </div>
+        </div>
+    );
+
+    const handleComplaintSuccess = (complaint) => {
+        // Refresh notifications
+        if (userInfo.id) {
+            const unreadCount = notificationService.getUnreadCount(userInfo.id);
+            setNotifications(unreadCount);
+        }
+        
+        // Show success message
+        const successMessage = selectedLanguage === 'hi' ? `शिकायत सफलतापूर्वक दर्ज की गई! ID: ${complaint.id}` :
+            selectedLanguage === 'en' ? `Complaint filed successfully! ID: ${complaint.id}` :
+            `شکایت کامیابی سے درج کی گئی! ID: ${complaint.id}`;
+        
+        // You could add a toast notification here
+        console.log(successMessage);
+    };
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 via-green-50 to-purple-50">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-700 text-white p-6 shadow-2xl relative overflow-hidden">
-                <div className="absolute inset-0 bg-black/10"></div>
-                <div className="absolute top-0 left-0 w-full h-full">
-                    <div className="absolute top-4 left-4 w-16 h-16 bg-white/10 rounded-full animate-pulse"></div>
-                    <div className="absolute top-8 right-8 w-12 h-12 bg-white/10 rounded-full animate-pulse delay-300"></div>
-                    <div className="absolute bottom-4 left-1/3 w-8 h-8 bg-white/10 rounded-full animate-pulse delay-700"></div>
-                </div>
-                <div className="relative z-10">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-6">
-                            <div className="bg-white/20 p-2 rounded-3xl backdrop-blur-sm border-2 border-white/30">
-                                <img 
-                                    src="/logo.png" 
-                                    alt="Jan Sahayak Logo" 
-                                    className="w-16 h-16 object-contain"
-                                />
+            {/* Enhanced Navbar */}
+            <nav className="bg-white shadow-lg border-b border-gray-200 sticky top-0 z-40">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="flex items-center justify-between h-20">
+                        {/* Brand/Logo Area (Left Side) */}
+                        <div className="flex items-center space-x-4">
+                            {/* Logo */}
+                            <div className="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-orange-500 via-white to-green-500 rounded-xl text-gray-800 font-bold text-xl shadow-lg border-2 border-gray-200">
+                                IN
                             </div>
-                            <div>
-                                <h1 className="text-4xl font-bold bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent mb-2">
+                            
+                            {/* Brand and Location */}
+                            <div className="flex flex-col">
+                                <h1 className="text-3xl font-bold text-gray-900 leading-tight tracking-tight">
                                     {t.appName}
                                 </h1>
-                                <p className="text-blue-100 text-lg flex items-center space-x-2">
-                                    <MapPin className="w-5 h-5" />
-                                    <span>{isLoggedIn ? `${userInfo.village}, ${userInfo.district}, ${userInfo.state}` : t.location}</span>
-                                </p>
-                                {isLoggedIn && (
-                                    <p className="text-blue-200 text-lg flex items-center space-x-2 mt-2">
-                                        <Users className="w-4 h-4" />
-                                        <span>{t.hello}, {userInfo.name}</span>
-                                    </p>
-                                )}
+                                <div className="flex items-center text-base text-gray-600 mt-1">
+                                    <MapPin className="w-4 h-4 mr-2 text-blue-600" />
+                                    <span className="font-medium">
+                                        {isLoggedIn 
+                                            ? `${userInfo.village || 'गांव'}, ${userInfo.district || 'जिला'}, ${userInfo.state || 'राज्य'}`
+                                            : t.location
+                                        }
+                                    </span>
+                                </div>
                             </div>
                         </div>
-                        <div className="flex items-center space-x-4">
-                            <select
-                                value={selectedLanguage}
-                                onChange={(e) => setSelectedLanguage(e.target.value)}
-                                className="bg-white/20 backdrop-blur-sm border-2 border-white/30 rounded-2xl px-6 py-3 text-lg text-white focus:outline-none focus:ring-2 focus:ring-white/50"
-                            >
-                                <option value="hi" className="text-black">🇮🇳 हिंदी</option>
-                                <option value="en" className="text-black">🇬🇧 English</option>
-                                <option value="ur" className="text-black">🇵🇰 اردو</option>
-                            </select>
 
+                        {/* Navigation/Utility Area (Right Side) */}
+                        <div className="flex items-center space-x-3">
+                            {/* User Profile (if logged in) */}
+                            {isLoggedIn && (
+                                <div className="hidden md:flex items-center space-x-3 px-4 py-2 bg-gradient-to-r from-blue-50 to-green-50 rounded-xl border border-blue-200">
+                                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-green-500 rounded-full flex items-center justify-center">
+                                        <User className="w-4 h-4 text-white" />
+                                    </div>
+                                    <div className="text-sm">
+                                        <div className="font-semibold text-gray-900">
+                                            {t.hello}, {userInfo.name?.split(' ')[0] || 'User'}
+                                        </div>
+                                        <div className="text-xs text-gray-600">
+                                            {selectedLanguage === 'hi' && 'सत्यापित उपयोगकर्ता'}
+                                            {selectedLanguage === 'en' && 'Verified User'}
+                                            {selectedLanguage === 'ur' && 'تصدیق شدہ صارف'}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Admin Access Button */}
+                            <button
+                                onClick={() => window.open('./admin.html', '_blank')}
+                                className="hidden md:flex items-center space-x-2 bg-red-50 text-red-600 px-3 py-2 rounded-xl hover:bg-red-100 transition-all text-sm font-medium border border-red-200"
+                                title="Admin Dashboard - सरकारी अधिकारियों के लिए"
+                            >
+                                <Shield className="w-4 h-4" />
+                                <span>Admin</span>
+                            </button>
+
+                            {/* Language Selector */}
+                            <div className="relative">
+                                <label className="sr-only">
+                                    {selectedLanguage === 'hi' && 'भाषा चुनें'}
+                                    {selectedLanguage === 'en' && 'Select Language'}
+                                    {selectedLanguage === 'ur' && 'زبان منتخب کریں'}
+                                </label>
+                                <select
+                                    value={selectedLanguage}
+                                    onChange={(e) => setSelectedLanguage(e.target.value)}
+                                    className="appearance-none bg-white border-2 border-gray-300 rounded-xl px-4 py-3 pr-10 text-sm font-semibold text-gray-700 hover:bg-gray-50 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer transition-all shadow-sm"
+                                >
+                                    <option value="hi">🇮🇳 हिंदी</option>
+                                    <option value="en">🇬🇧 English</option>
+                                    <option value="ur">🇵🇰 اردو</option>
+                                </select>
+                                <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none">
+                                    <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </div>
+                            </div>
+
+                            {/* Notifications */}
+                            <button
+                                onClick={() => setShowNotifications(true)}
+                                className="relative p-3 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 border-2 border-transparent hover:border-blue-200"
+                                title={
+                                    selectedLanguage === 'hi' ? 'सूचनाएं' :
+                                    selectedLanguage === 'en' ? 'Notifications' :
+                                    'اطلاعات'
+                                }
+                            >
+                                <Bell className="w-6 h-6" />
+                                {notifications > 0 && (
+                                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center animate-pulse shadow-lg">
+                                        {notifications > 9 ? '9+' : notifications}
+                                    </span>
+                                )}
+                            </button>
+
+                            {/* Login/Logout */}
                             {!isLoggedIn ? (
                                 <button
                                     onClick={() => setShowLogin(true)}
-                                    className="flex items-center space-x-3 bg-white/20 backdrop-blur-sm px-6 py-3 rounded-2xl hover:bg-white/30 transition-all transform hover:scale-105 border-2 border-white/30"
+                                    className="flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-3 rounded-xl font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-lg transform hover:scale-105"
                                 >
                                     <LogIn className="w-5 h-5" />
-                                    <span className="text-lg font-bold">{t.login}</span>
+                                    <span>{t.login}</span>
                                 </button>
                             ) : (
                                 <button
                                     onClick={handleLogout}
-                                    className="flex items-center space-x-3 bg-white/20 backdrop-blur-sm px-6 py-3 rounded-2xl hover:bg-white/30 transition-all transform hover:scale-105 border-2 border-white/30"
+                                    className="flex items-center space-x-2 text-gray-600 hover:text-red-600 hover:bg-red-50 px-4 py-3 rounded-xl font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-red-500 border-2 border-transparent hover:border-red-200"
+                                    title={
+                                        selectedLanguage === 'hi' ? 'लॉगआउट' :
+                                        selectedLanguage === 'en' ? 'Logout' :
+                                        'لاگ آؤٹ'
+                                    }
                                 >
                                     <LogOut className="w-5 h-5" />
-                                    <span className="text-lg font-bold">{t.logout}</span>
+                                    <span className="hidden sm:inline">{t.logout}</span>
                                 </button>
                             )}
+                        </div>
+                    </div>
+                </div>
 
-                            <div className="relative">
-                                <div className="bg-white/20 backdrop-blur-sm p-3 rounded-2xl border-2 border-white/30">
-                                    <Bell className="w-8 h-8" />
-                                    {notifications > 0 && (
-                                        <span className="absolute -top-2 -right-2 bg-red-500 rounded-full text-sm w-8 h-8 flex items-center justify-center animate-bounce font-bold">
-                                            {notifications}
-                                        </span>
-                                    )}
+                {/* Mobile User Info Bar (if logged in) */}
+                {isLoggedIn && (
+                    <div className="md:hidden bg-gradient-to-r from-blue-50 to-green-50 border-t border-gray-200 px-4 py-3">
+                        <div className="flex items-center space-x-3">
+                            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-green-500 rounded-full flex items-center justify-center">
+                                <User className="w-4 h-4 text-white" />
+                            </div>
+                            <div className="flex-1">
+                                <div className="font-semibold text-gray-900 text-sm">
+                                    {t.hello}, {userInfo.name?.split(' ')[0] || 'User'}
+                                </div>
+                                <div className="text-xs text-gray-600">
+                                    {selectedLanguage === 'hi' && 'सत्यापित उपयोगकर्ता'}
+                                    {selectedLanguage === 'en' && 'Verified User'}
+                                    {selectedLanguage === 'ur' && 'تصدیق شدہ صارف'}
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            </div>
+                )}
+            </nav>
 
             {/* Error Display */}
             {error && (
@@ -481,104 +654,113 @@ const SamudayikAwaaz = () => {
                 selectedLanguage={selectedLanguage}
             />
 
-            {/* Voice Command Section */}
-            <div className="p-6">
-                <div className="bg-gradient-to-r from-emerald-400 via-blue-500 to-purple-600 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden border-4 border-white">
-                    <div className="absolute inset-0 bg-black/10"></div>
-                    <div className="relative z-10">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h2 className="font-bold text-2xl mb-2 flex items-center space-x-3">
-                                    <Phone className="w-8 h-8" />
-                                    <span>{t.voiceCall}</span>
-                                </h2>
-                                <p className="text-white/80 text-lg mb-3">{t.callNumber}</p>
-                                <div className="flex items-center space-x-3">
-                                    <div className="w-3 h-3 bg-green-300 rounded-full animate-pulse"></div>
-                                    <span className="text-lg text-white/70 font-medium">
-                                        🕐 {t.available247}
-                                    </span>
-                                </div>
+            {/* Notification Panel */}
+            <NotificationPanel 
+                isOpen={showNotifications}
+                onClose={() => {
+                    setShowNotifications(false);
+                    // Refresh notification count
+                    if (userInfo.id) {
+                        const unreadCount = notificationService.getUnreadCount(userInfo.id);
+                        setNotifications(unreadCount);
+                    }
+                }}
+                userInfo={userInfo}
+                selectedLanguage={selectedLanguage}
+                onTabChange={setActiveTab}
+            />
+
+            {/* Voice Command Section - Simplified */}
+            <div className="max-w-7xl mx-auto px-6 py-6">
+                <div className="card-clean bg-gradient-success text-white p-6">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4">
+                            <div className="bg-white/20 p-3 rounded-xl">
+                                <Phone className="icon-xl text-white" />
                             </div>
-                            <div className="flex items-center space-x-4">
-                                <button
-                                    onClick={toggleVoiceRecording}
-                                    className={`p-6 rounded-full transition-all transform border-3 ${isListening
-                                        ? 'bg-red-500 animate-pulse scale-110 shadow-xl border-red-300'
-                                        : 'bg-white/20 hover:bg-white/30 hover:scale-105 border-white/30'
-                                        }`}
-                                >
-                                    {isListening ? <MicOff className="w-10 h-10" /> : <Mic className="w-10 h-10" />}
-                                </button>
-                                <div className="bg-white/20 p-4 rounded-full border-2 border-white/30">
-                                    <Phone className="w-12 h-12 text-white" />
+                            <div>
+                                <h2 className="text-subheading font-bold mb-1">{t.voiceCall}</h2>
+                                <p className="text-body text-white/90">{t.callNumber}</p>
+                                <div className="flex items-center space-x-2 mt-1">
+                                    <div className="w-2 h-2 bg-green-300 rounded-full animate-pulse"></div>
+                                    <span className="text-caption text-white/80">{t.available247}</span>
                                 </div>
                             </div>
                         </div>
-                        {(isListening || transcript || aiResponse) && (
-                            <div className="mt-6 p-6 bg-white/20 backdrop-blur-sm rounded-3xl border-2 border-white/30">
-                                {isListening && (
-                                    <div className="flex items-center space-x-4 mb-4">
-                                        <div className="flex space-x-2">
-                                            <div className="w-3 h-6 bg-white rounded-full animate-bounce"></div>
-                                            <div className="w-3 h-8 bg-white rounded-full animate-bounce delay-75"></div>
-                                            <div className="w-3 h-6 bg-white rounded-full animate-bounce delay-150"></div>
-                                        </div>
-                                        <p className="text-lg font-bold">🎤 {t.listening}</p>
-                                    </div>
-                                )}
-
-                                {transcript && (
-                                    <div className="bg-white/20 p-4 rounded-2xl mb-4 border-2 border-white/30">
-                                        <p className="text-sm text-white/70 mb-2">💬 {t.youSaid}</p>
-                                        <p className="text-lg italic">"{transcript}"</p>
-                                    </div>
-                                )}
-
-                                {isProcessing && (
-                                    <div className="bg-white/20 p-4 rounded-2xl mb-4 border-2 border-white/30">
-                                        <div className="flex items-center space-x-3">
-                                            <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                            <p className="text-lg">⚡ {t.preparing}</p>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {aiResponse && (
-                                    <div className="bg-white/20 p-4 rounded-2xl border-2 border-white/30">
-                                        <p className="text-sm text-white/70 mb-2">🤖 {t.janSahayak}</p>
-                                        <p className="text-lg">{aiResponse}</p>
-                                    </div>
-                                )}
-                            </div>
-                        )}
+                        
+                        <div className="flex items-center space-x-3">
+                            <button
+                                onClick={toggleVoiceRecording}
+                                className={`voice-btn ${isListening ? 'recording' : ''}`}
+                            >
+                                {isListening ? <MicOff className="icon-lg" /> : <Mic className="icon-lg" />}
+                            </button>
+                        </div>
                     </div>
+                    
+                    {(isListening || transcript || aiResponse) && (
+                        <div className="mt-6 bg-white/10 backdrop-blur-sm rounded-xl p-4">
+                            {isListening && (
+                                <div className="flex items-center space-x-3 mb-3">
+                                    <div className="flex space-x-1">
+                                        <div className="w-2 h-4 bg-white rounded-full animate-voice-wave"></div>
+                                        <div className="w-2 h-6 bg-white rounded-full animate-voice-wave delay-75"></div>
+                                        <div className="w-2 h-4 bg-white rounded-full animate-voice-wave delay-150"></div>
+                                    </div>
+                                    <p className="text-body font-semibold">🎤 {t.listening}</p>
+                                </div>
+                            )}
+
+                            {transcript && (
+                                <div className="bg-white/10 p-3 rounded-lg mb-3">
+                                    <p className="text-caption text-white/70 mb-1">💬 {t.youSaid}</p>
+                                    <p className="text-body italic">"{transcript}"</p>
+                                </div>
+                            )}
+
+                            {isProcessing && (
+                                <div className="bg-white/10 p-3 rounded-lg mb-3">
+                                    <div className="flex items-center space-x-2">
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                        <p className="text-body">⚡ {t.preparing}</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {aiResponse && (
+                                <div className="bg-white/10 p-3 rounded-lg">
+                                    <p className="text-caption text-white/70 mb-1">🤖 {t.janSahayak}</p>
+                                    <p className="text-body">{aiResponse}</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 
-            {/* Tab Navigation */}
-            <div className="px-6 pb-6">
-                <div className="bg-white rounded-3xl p-4 shadow-xl border-4 border-gray-100">
-                    <div className="grid grid-cols-4 gap-4">
+            {/* Tab Navigation - Improved */}
+            <div className="max-w-7xl mx-auto px-6 pb-6">
+                <div className="card-clean p-4">
+                    <div className="grid grid-cols-4 gap-3">
                         <TabButton
                             id="home"
-                            icon={<Home className="w-8 h-8" />}
-                            label={`🏠 ${t.home}`}
+                            label={t.home}
+                            emoji="🏠"
                         />
                         <TabButton
                             id="gramvaani"
-                            icon={<Newspaper className="w-8 h-8" />}
-                            label={`📢 ${t.gramvaani}`}
+                            label={t.gramvaani}
+                            emoji="📢"
                         />
                         <TabButton
                             id="rights"
-                            icon={<Scale className="w-8 h-8" />}
-                            label={`⚖️ ${t.rights}`}
+                            label={t.rights}
+                            emoji="⚖️"
                         />
                         <TabButton
                             id="complaints"
-                            icon={<FileText className="w-8 h-8" />}
-                            label={`📝 ${t.complaints}`}
+                            label={t.complaints}
+                            emoji="📝"
                             count={notifications}
                         />
                     </div>
@@ -586,18 +768,19 @@ const SamudayikAwaaz = () => {
             </div>
 
             {/* Content Area */}
-            <div className="px-4 pb-32 max-w-6xl mx-auto">
+            <div className="max-w-7xl mx-auto px-6 pb-32">
                 <div className="min-h-[60vh]">
                     {activeTab === 'home' && (
-                        <Dashboard
+                        <ImprovedDashboard
                             userInfo={userInfo}
                             selectedLanguage={selectedLanguage}
                             onTabChange={setActiveTab}
+                            onComplaintSuccess={handleComplaintSuccess}
                         />
                     )}
 
                     {activeTab === 'gramvaani' && (
-                        <VillageVoice
+                        <EnhancedVillageVoice
                             userInfo={userInfo}
                             selectedLanguage={selectedLanguage}
                         />
@@ -614,36 +797,57 @@ const SamudayikAwaaz = () => {
                         <ComplaintsManager
                             userInfo={userInfo}
                             selectedLanguage={selectedLanguage}
+                            onTabChange={setActiveTab}
+                            onComplaintSuccess={handleComplaintSuccess}
+                            setUserInfo={setUserInfo}
                         />
                     )}
                 </div>
             </div>
 
-            {/* Voice Button */}
-            <VoiceButton />
+            {/* Floating Action Buttons - Removed as requested */}
 
-            {/* Bottom Call Bar */}
-            <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-green-500 to-blue-600 border-t-4 border-white p-4 shadow-2xl">
-                <div className="flex items-center justify-center space-x-6">
-                    <button
-                        onClick={() => window.open('tel:1800-AWAAZ-HUB')}
-                        className="flex items-center space-x-4 bg-white/20 text-white px-8 py-4 rounded-full shadow-lg hover:shadow-xl transition-all transform hover:scale-105 border-2 border-white/30"
-                    >
-                        <Phone className="w-6 h-6" />
-                        <span className="font-bold text-lg">📞 1800-AWAAZ-HUB</span>
-                    </button>
-                    <button
-                        onClick={toggleVoiceRecording}
-                        className={`flex items-center space-x-3 px-6 py-4 rounded-full shadow-lg transition-all transform hover:scale-105 border-2 ${isListening
-                            ? 'bg-red-500 text-white animate-pulse border-red-300'
-                            : 'bg-white/20 text-white hover:bg-white/30 border-white/30'
-                            }`}
-                    >
-                        <Mic className="w-5 h-5" />
-                        <span className="text-lg font-bold">
-                            {isListening ? `🔴 ${t.listening}` : `🎤 ${t.startVoice}`}
-                        </span>
-                    </button>
+            {/* Quick Complaint Form Modal */}
+            <QuickComplaintForm
+                isOpen={showQuickComplaint}
+                onClose={() => setShowQuickComplaint(false)}
+                selectedLanguage={selectedLanguage}
+                onSuccess={handleComplaintSuccess}
+            />
+
+            {/* Officials Contact Modal */}
+            <OfficialsContact
+                isOpen={showOfficialsContact}
+                onClose={() => setShowOfficialsContact(false)}
+                selectedLanguage={selectedLanguage}
+                userInfo={userInfo}
+            />
+
+            {/* Bottom Action Bar - Persistent */}
+            <div className="fixed bottom-0 left-0 right-0 bg-primary border-t border-gray-200 shadow-clean-xl">
+                <div className="max-w-7xl mx-auto px-6 py-4">
+                    <div className="flex items-center justify-center space-x-4">
+                        <a
+                            href="tel:18001801551"
+                            className="btn-secondary bg-white text-primary hover:bg-gray-50 flex items-center space-x-2"
+                        >
+                            <span className="text-2xl">📞</span>
+                            <span className="font-semibold">1800-180-1551</span>
+                        </a>
+                        
+                        <button
+                            onClick={toggleVoiceRecording}
+                            className={`btn-primary flex items-center space-x-2 ${isListening
+                                ? 'bg-red-600 hover:bg-red-700 animate-pulse'
+                                : 'bg-green-600 hover:bg-green-700'
+                                }`}
+                        >
+                            <span className="text-2xl">{isListening ? '🔴' : '🎤'}</span>
+                            <span className="font-semibold">
+                                {isListening ? t.listening : t.startVoice}
+                            </span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

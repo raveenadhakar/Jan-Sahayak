@@ -162,11 +162,9 @@ const AuthModal = ({ isOpen, onClose, onSuccess, selectedLanguage }) => {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="bg-white/20 p-2 rounded-2xl">
-                <img 
-                  src="/logo.png" 
-                  alt="Logo" 
-                  className="w-8 h-8 object-contain"
-                />
+                <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-green-500 rounded-lg flex items-center justify-center text-white font-bold text-sm">
+                  🇮🇳
+                </div>
               </div>
               <div>
                 <h2 className="text-2xl font-bold">

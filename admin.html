@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - समुदायिक आवाज़</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .loading { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div id="admin-root">
+        <div style="display: flex; justify-content: center; align-items: center; height: 100vh; background: linear-gradient(135deg, #fef2f2, #fef3c7);">
+            <div style="text-align: center;">
+                <div style="width: 50px; height: 50px; border: 4px solid #ef4444; border-top: 4px solid transparent; border-radius: 50%; margin: 0 auto 20px; animation: spin 1s linear infinite;"></div>
+                <p style="color: #374151; font-size: 18px;">Loading Admin Dashboard...</p>
+            </div>
+        </div>
+    </div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // Simple Icons (using Unicode symbols)
+        const Icons = {
+            Shield: () => <span style={{fontSize: '24px'}}>🛡️</span>,
+            Eye: () => <span style={{fontSize: '16px'}}>👁️</span>,
+            EyeOff: () => <span style={{fontSize: '16px'}}>🙈</span>,
+            LogIn: () => <span style={{fontSize: '16px'}}>🔑</span>,
+            FileText: () => <span style={{fontSize: '16px'}}>📄</span>,
+            CheckCircle: () => <span style={{fontSize: '16px'}}>✅</span>,
+            Clock: () => <span style={{fontSize: '16px'}}>⏰</span>,
+            AlertTriangle: () => <span style={{fontSize: '16px'}}>⚠️</span>,
+            RefreshCw: () => <span style={{fontSize: '16px'}}>🔄</span>,
+            MessageSquare: () => <span style={{fontSize: '16px'}}>💬</span>,
+            X: () => <span style={{fontSize: '16px'}}>❌</span>,
+            MapPin: () => <span style={{fontSize: '16px'}}>📍</span>,
+            Phone: () => <span style={{fontSize: '16px'}}>📞</span>,
+            Building2: () => <span style={{fontSize: '16px'}}>🏢</span>
+        };
+
+        // Shared complaint service that syncs with main app
+        const sharedComplaintService = {
+            storageKey: 'samudayikAwaazComplaints',
+            
+            getComplaints() {
+                try {
+                    const data = localStorage.getItem(this.storageKey);
+                    return data ? JSON.parse(data) : this.getDefaultComplaints();
+                } catch (error) {
+                    console.error('Error loading complaints:', error);
+                    return this.getDefaultComplaints();
+                }
+            },
+            
+            saveComplaints(complaints) {
+                try {
+                    localStorage.setItem(this.storageKey, JSON.stringify(complaints));
+                    // Trigger storage event for other tabs
+                    window.dispatchEvent(new StorageEvent('storage', {
+                        key: this.storageKey,
+                        newValue: JSON.stringify(complaints)
+                    }));
+                } catch (error) {
+                    console.error('Error saving complaints:', error);
+                }
+            },
+            
+            updateComplaintStatus(complaintId, newStatus, note) {
+                const complaints = this.getComplaints();
+                const complaintIndex = complaints.findIndex(c => c.id === complaintId);
+                if (complaintIndex !== -1) {
+                    complaints[complaintIndex].status = newStatus;
+                    complaints[complaintIndex].statusHistory.push({
+                        status: newStatus,
+                        timestamp: new Date().toISOString(),
+                        note: note || `Status updated to ${newStatus} by admin`
+                    });
+                    this.saveComplaints(complaints);
+                    return { success: true };
+                }
+                return { success: false };
+            },
+            
+            getDefaultComplaints() {
+                return [
+            {
+                id: 'CMP1001',
+                title: 'सड़क की खराब स्थिति',
+                description: 'मुख्य सड़क पर बड़े गड्ढे हैं जिससे वाहन चलाने में परेशानी हो रही है।',
+                category: 'infrastructure',
+                priority: 'high',
+                status: 'submitted',
+                location: 'मुजफ्फरनगर, उत्तर प्रदेश',
+                contactNumber: '+91-9876543210',
+                createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+                assignedDepartment: 'लोक निर्माण विभाग',
+                statusHistory: [
+                    {
+                        status: 'submitted',
+                        timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+                        note: 'शिकायत प्राप्त हुई है और समीक्षा के लिए भेजी गई है।'
+                    }
+                ]
+            },
+            {
+                id: 'CMP1002',
+                title: 'पानी की समस्या',
+                description: 'हमारे क्षेत्र में पिछले 3 दिनों से पानी की आपूर्ति नहीं हो रही है।',
+                category: 'water',
+                priority: 'high',
+                status: 'under_review',
+                location: 'शामली, उत्तर प्रदेश',
+                contactNumber: '+91-9876543211',
+                createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+                assignedDepartment: 'जल निगम',
+                statusHistory: [
+                    {
+                        status: 'submitted',
+                        timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+                        note: 'शिकायत प्राप्त हुई है।'
+                    },
+                    {
+                        status: 'under_review',
+                        timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+                        note: 'जल विभाग को भेजा गया है। जांच की जा रही है।'
+                    }
+                ]
+            },
+            {
+                id: 'CMP1003',
+                title: 'बिजली की कटौती',
+                description: 'दिन में 8-10 घंटे बिजली कटौती हो रही है।',
+                category: 'electricity',
+                priority: 'medium',
+                status: 'in_progress',
+                location: 'बागपत, उत्तर प्रदेश',
+                contactNumber: '+91-9876543212',
+                createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+                assignedDepartment: 'विद्युत विभाग',
+                statusHistory: [
+                    {
+                        status: 'submitted',
+                        timestamp: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+                        note: 'शिकायत प्राप्त हुई है।'
+                    },
+                    {
+                        status: 'under_review',
+                        timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+                        note: 'विद्युत विभाग को भेजा गया है।'
+                    },
+                    {
+                        status: 'in_progress',
+                        timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+                        note: 'ट्रांसफार्मर की मरम्मत का काम शुरू किया गया है।'
+                    }
+                ]
+            },
+            {
+                id: 'CMP1004',
+                title: 'स्वास्थ्य केंद्र में दवाई नहीं',
+                description: 'प्राथमिक स्वास्थ्य केंद्र में बुनियादी दवाइयां उपलब्ध नहीं हैं।',
+                category: 'health',
+                priority: 'high',
+                status: 'resolved',
+                location: 'मेरठ, उत्तर प्रदेश',
+                contactNumber: '+91-9876543213',
+                createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+                assignedDepartment: 'स्वास्थ्य विभाग',
+                statusHistory: [
+                    {
+                        status: 'submitted',
+                        timestamp: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+                        note: 'शिकायत प्राप्त हुई है।'
+                    },
+                    {
+                        status: 'resolved',
+                        timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+                        note: 'दवाइयों की आपूर्ति हो गई है और नियमित डॉक्टर की व्यवस्था की गई है।'
+                    }
+                ]
+            }
+        ];
+            }
+        };
+
+        const AdminLogin = () => {
+            const [isLoggedIn, setIsLoggedIn] = useState(false);
+            const [credentials, setCredentials] = useState({ username: '', password: '' });
+            const [showPassword, setShowPassword] = useState(false);
+            const [error, setError] = useState('');
+
+            const handleLogin = (e) => {
+                e.preventDefault();
+                if (credentials.username === 'admin' && credentials.password === 'admin123') {
+                    setIsLoggedIn(true);
+                } else {
+                    setError('गलत उपयोगकर्ता नाम या पासवर्ड');
+                }
+            };
+
+            const handleLogout = () => {
+                setIsLoggedIn(false);
+                setCredentials({ username: '', password: '' });
+                setError('');
+            };
+
+            if (isLoggedIn) {
+                return <AdminDashboard onLogout={handleLogout} />;
+            }
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-red-50 via-orange-50 to-yellow-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md">
+                        <div className="text-center mb-8">
+                            <div className="bg-red-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <Icons.Shield />
+                            </div>
+                            <h2 className="text-2xl font-bold text-gray-800">प्रशासनिक लॉगिन</h2>
+                            <p className="text-gray-600 mt-2">सरकारी अधिकारियों के लिए</p>
+                        </div>
+
+                        {error && (
+                            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl mb-4">
+                                {error}
+                            </div>
+                        )}
+
+                        <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-xl mb-6 text-sm">
+                            💡 डेमो क्रेडेंशियल्स: admin / admin123
+                        </div>
+
+                        <form onSubmit={handleLogin} className="space-y-6">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">उपयोगकर्ता नाम</label>
+                                <input
+                                    type="text"
+                                    value={credentials.username}
+                                    onChange={(e) => setCredentials(prev => ({ ...prev, username: e.target.value }))}
+                                    className="w-full p-4 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all"
+                                    placeholder="admin"
+                                    required
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">पासवर्ड</label>
+                                <div className="relative">
+                                    <input
+                                        type={showPassword ? 'text' : 'password'}
+                                        value={credentials.password}
+                                        onChange={(e) => setCredentials(prev => ({ ...prev, password: e.target.value }))}
+                                        className="w-full p-4 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all pr-12"
+                                        placeholder="admin123"
+                                        required
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                                    >
+                                        {showPassword ? <Icons.EyeOff /> : <Icons.Eye />}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <button
+                                type="submit"
+                                className="w-full bg-red-500 text-white py-4 rounded-xl hover:bg-red-600 transition-all font-semibold flex items-center justify-center space-x-2"
+                            >
+                                <Icons.LogIn />
+                                <span>लॉगिन करें</span>
+                            </button>
+                        </form>
+
+                        <div className="mt-8 text-center text-sm text-gray-500">
+                            <p>🏛️ भारत सरकार | Government of India</p>
+                            <p>डिजिटल इंडिया पहल</p>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const AdminDashboard = ({ onLogout }) => {
+            const [complaints, setComplaints] = useState([]);
+            const [filteredComplaints, setFilteredComplaints] = useState([]);
+            const [selectedComplaint, setSelectedComplaint] = useState(null);
+            const [statusFilter, setStatusFilter] = useState('all');
+            const [showUpdateModal, setShowUpdateModal] = useState(false);
+            const [updateNote, setUpdateNote] = useState('');
+            const [newStatus, setNewStatus] = useState('');
+
+            useEffect(() => {
+                loadComplaints();
+                
+                // Listen for storage changes (real-time sync)
+                const handleStorageChange = (e) => {
+                    if (e.key === sharedComplaintService.storageKey) {
+                        loadComplaints();
+                    }
+                };
+                
+                window.addEventListener('storage', handleStorageChange);
+                return () => window.removeEventListener('storage', handleStorageChange);
+            }, []);
+
+            useEffect(() => {
+                filterComplaints();
+            }, [complaints, statusFilter]);
+            
+            const loadComplaints = () => {
+                const allComplaints = sharedComplaintService.getComplaints();
+                setComplaints(allComplaints);
+            };
+
+            const filterComplaints = () => {
+                let filtered = [...complaints];
+                if (statusFilter !== 'all') {
+                    filtered = filtered.filter(c => c.status === statusFilter);
+                }
+                setFilteredComplaints(filtered);
+            };
+
+            const handleStatusUpdate = () => {
+                if (!selectedComplaint || !newStatus) return;
+
+                const result = sharedComplaintService.updateComplaintStatus(
+                    selectedComplaint.id,
+                    newStatus,
+                    updateNote || `Status updated to ${newStatus} by admin`
+                );
+
+                if (result.success) {
+                    loadComplaints(); // Reload from shared storage
+                    setShowUpdateModal(false);
+                    setUpdateNote('');
+                    setNewStatus('');
+                    setSelectedComplaint(null);
+                }
+            };
+
+            const getStatusColor = (status) => {
+                switch (status) {
+                    case 'resolved': return 'bg-green-100 text-green-800';
+                    case 'in_progress': return 'bg-blue-100 text-blue-800';
+                    case 'under_review': return 'bg-orange-100 text-orange-800';
+                    case 'submitted': return 'bg-yellow-100 text-yellow-800';
+                    default: return 'bg-gray-100 text-gray-800';
+                }
+            };
+
+            const getPriorityColor = (priority) => {
+                switch (priority) {
+                    case 'high': return 'bg-red-100 text-red-800';
+                    case 'medium': return 'bg-orange-100 text-orange-800';
+                    case 'low': return 'bg-green-100 text-green-800';
+                    default: return 'bg-gray-100 text-gray-800';
+                }
+            };
+
+            const getStats = () => {
+                const total = complaints.length;
+                const submitted = complaints.filter(c => c.status === 'submitted').length;
+                const underReview = complaints.filter(c => c.status === 'under_review').length;
+                const inProgress = complaints.filter(c => c.status === 'in_progress').length;
+                const resolved = complaints.filter(c => c.status === 'resolved').length;
+                return { total, submitted, underReview, inProgress, resolved };
+            };
+
+            const stats = getStats();
+
+            return (
+                <div className="min-h-screen bg-gray-50">
+                    {/* Header */}
+                    <div className="bg-white shadow-lg border-b border-gray-200 sticky top-0 z-40">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <div className="flex items-center justify-between h-16">
+                                <div className="flex items-center space-x-3">
+                                    <div className="bg-red-500 p-2 rounded-lg">
+                                        <Icons.Shield />
+                                    </div>
+                                    <h1 className="text-xl font-bold text-gray-800">प्रशासनिक डैशबोर्ड</h1>
+                                </div>
+                                <button
+                                    onClick={onLogout}
+                                    className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-all"
+                                >
+                                    लॉगआउट
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+                        {/* Stats Cards */}
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                            <div className="bg-white rounded-2xl p-6 shadow-lg">
+                                <div className="flex items-center space-x-3">
+                                    <div className="bg-blue-100 p-3 rounded-xl">
+                                        <Icons.FileText />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-gray-600">कुल शिकायतें</p>
+                                        <p className="text-2xl font-bold text-gray-800">{stats.total}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-white rounded-2xl p-6 shadow-lg">
+                                <div className="flex items-center space-x-3">
+                                    <div className="bg-yellow-100 p-3 rounded-xl">
+                                        <Icons.Clock />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-gray-600">दर्ज की गई</p>
+                                        <p className="text-2xl font-bold text-gray-800">{stats.submitted}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-white rounded-2xl p-6 shadow-lg">
+                                <div className="flex items-center space-x-3">
+                                    <div className="bg-orange-100 p-3 rounded-xl">
+                                        <Icons.Eye />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-gray-600">समीक्षा में</p>
+                                        <p className="text-2xl font-bold text-gray-800">{stats.underReview}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-white rounded-2xl p-6 shadow-lg">
+                                <div className="flex items-center space-x-3">
+                                    <div className="bg-blue-100 p-3 rounded-xl">
+                                        <Icons.RefreshCw />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-gray-600">प्रगति में</p>
+                                        <p className="text-2xl font-bold text-gray-800">{stats.inProgress}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-white rounded-2xl p-6 shadow-lg">
+                                <div className="flex items-center space-x-3">
+                                    <div className="bg-green-100 p-3 rounded-xl">
+                                        <Icons.CheckCircle />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-gray-600">हल हुई</p>
+                                        <p className="text-2xl font-bold text-gray-800">{stats.resolved}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Filter */}
+                        <div className="bg-white rounded-2xl p-6 shadow-lg">
+                            <div className="flex items-center space-x-4">
+                                <label className="text-sm font-medium text-gray-700">स्थिति के अनुसार फिल्टर करें:</label>
+                                <select
+                                    value={statusFilter}
+                                    onChange={(e) => setStatusFilter(e.target.value)}
+                                    className="p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                >
+                                    <option value="all">सभी</option>
+                                    <option value="submitted">दर्ज की गई</option>
+                                    <option value="under_review">समीक्षा में</option>
+                                    <option value="in_progress">प्रगति में</option>
+                                    <option value="resolved">हल हुई</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Complaints Table */}
+                        <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+                            <div className="p-6 border-b border-gray-200">
+                                <h3 className="text-lg font-bold text-gray-800">
+                                    सभी शिकायतें ({filteredComplaints.length})
+                                </h3>
+                            </div>
+
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">शीर्षक</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">श्रेणी</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">प्राथमिकता</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">स्थिति</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">दिनांक</th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">कार्य</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        {filteredComplaints.map((complaint) => (
+                                            <tr key={complaint.id} className="hover:bg-gray-50">
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                                    {complaint.id}
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-gray-900">
+                                                    <div className="max-w-xs truncate">{complaint.title}</div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    {complaint.category}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getPriorityColor(complaint.priority)}`}>
+                                                        {complaint.priority}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(complaint.status)}`}>
+                                                        {complaint.status}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    {new Date(complaint.createdAt).toLocaleDateString('hi-IN')}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                                                    <button
+                                                        onClick={() => setSelectedComplaint(complaint)}
+                                                        className="text-blue-600 hover:text-blue-900 p-1"
+                                                        title="विवरण देखें"
+                                                    >
+                                                        <Icons.Eye />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            setSelectedComplaint(complaint);
+                                                            setShowUpdateModal(true);
+                                                            setNewStatus(complaint.status);
+                                                        }}
+                                                        className="text-green-600 hover:text-green-900 p-1"
+                                                        title="स्थिति अपडेट करें"
+                                                    >
+                                                        <Icons.MessageSquare />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {/* Complaint Details Modal */}
+                        {selectedComplaint && !showUpdateModal && (
+                            <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+                                <div className="bg-white rounded-3xl p-8 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+                                    <div className="flex items-center justify-between mb-6">
+                                        <h3 className="text-2xl font-bold text-gray-800">शिकायत विवरण</h3>
+                                        <button
+                                            onClick={() => setSelectedComplaint(null)}
+                                            className="p-2 hover:bg-gray-100 rounded-full transition-all"
+                                        >
+                                            <Icons.X />
+                                        </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                        <div className="space-y-6">
+                                            <div>
+                                                <h4 className="text-lg font-bold text-gray-800 mb-3">शिकायत जानकारी</h4>
+                                                <div className="space-y-3">
+                                                    <div>
+                                                        <span className="text-sm text-gray-600">ID:</span>
+                                                        <p className="font-semibold">{selectedComplaint.id}</p>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-sm text-gray-600">शीर्षक:</span>
+                                                        <p className="font-semibold">{selectedComplaint.title}</p>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-sm text-gray-600">विवरण:</span>
+                                                        <p className="text-gray-700">{selectedComplaint.description}</p>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div>
+                                                            <span className="text-sm text-gray-600">श्रेणी:</span>
+                                                            <p className="font-semibold">{selectedComplaint.category}</p>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-sm text-gray-600">प्राथमिकता:</span>
+                                                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getPriorityColor(selectedComplaint.priority)}`}>
+                                                                {selectedComplaint.priority}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <h4 className="text-lg font-bold text-gray-800 mb-3">नागरिक जानकारी</h4>
+                                                <div className="space-y-3">
+                                                    <div className="flex items-center space-x-2">
+                                                        <Icons.MapPin />
+                                                        <span>{selectedComplaint.location}</span>
+                                                    </div>
+                                                    <div className="flex items-center space-x-2">
+                                                        <Icons.Phone />
+                                                        <span>{selectedComplaint.contactNumber}</span>
+                                                    </div>
+                                                    <div className="flex items-center space-x-2">
+                                                        <Icons.Building2 />
+                                                        <span>{selectedComplaint.assignedDepartment}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <h4 className="text-lg font-bold text-gray-800 mb-3">स्थिति इतिहास</h4>
+                                            <div className="space-y-3">
+                                                {selectedComplaint.statusHistory?.map((update, index) => (
+                                                    <div key={index} className="bg-gray-50 rounded-xl p-4">
+                                                        <div className="flex items-center justify-between mb-2">
+                                                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(update.status)}`}>
+                                                                {update.status}
+                                                            </span>
+                                                            <span className="text-sm text-gray-500">
+                                                                {new Date(update.timestamp).toLocaleDateString('hi-IN')}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-gray-600">{update.note}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center justify-end space-x-4 mt-8 pt-6 border-t">
+                                        <button
+                                            onClick={() => setSelectedComplaint(null)}
+                                            className="px-6 py-3 text-gray-600 hover:bg-gray-100 rounded-xl transition-all"
+                                        >
+                                            बंद करें
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setShowUpdateModal(true);
+                                                setNewStatus(selectedComplaint.status);
+                                            }}
+                                            className="bg-blue-500 text-white px-6 py-3 rounded-xl hover:bg-blue-600 transition-all"
+                                        >
+                                            स्थिति अपडेट करें
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Status Update Modal */}
+                        {showUpdateModal && selectedComplaint && (
+                            <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+                                <div className="bg-white rounded-3xl p-8 w-full max-w-md">
+                                    <div className="flex items-center justify-between mb-6">
+                                        <h3 className="text-xl font-bold text-gray-800">स्थिति अपडेट करें</h3>
+                                        <button
+                                            onClick={() => {
+                                                setShowUpdateModal(false);
+                                                setUpdateNote('');
+                                                setNewStatus('');
+                                            }}
+                                            className="p-2 hover:bg-gray-100 rounded-full transition-all"
+                                        >
+                                            <Icons.X />
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">नई स्थिति</label>
+                                            <select
+                                                value={newStatus}
+                                                onChange={(e) => setNewStatus(e.target.value)}
+                                                className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                            >
+                                                <option value="submitted">दर्ज की गई</option>
+                                                <option value="under_review">समीक्षा में</option>
+                                                <option value="in_progress">प्रगति में</option>
+                                                <option value="resolved">हल हुई</option>
+                                                <option value="closed">बंद</option>
+                                                <option value="rejected">अस्वीकृत</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">टिप्पणी जोड़ें</label>
+                                            <textarea
+                                                value={updateNote}
+                                                onChange={(e) => setUpdateNote(e.target.value)}
+                                                className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 h-24 resize-none"
+                                                placeholder="इस स्थिति अपडेट के बारे में टिप्पणी जोड़ें..."
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center justify-end space-x-4 mt-6">
+                                        <button
+                                            onClick={() => {
+                                                setShowUpdateModal(false);
+                                                setUpdateNote('');
+                                                setNewStatus('');
+                                            }}
+                                            className="px-6 py-3 text-gray-600 hover:bg-gray-100 rounded-xl transition-all"
+                                        >
+                                            रद्द करें
+                                        </button>
+                                        <button
+                                            onClick={handleStatusUpdate}
+                                            className="bg-blue-500 text-white px-6 py-3 rounded-xl hover:bg-blue-600 transition-all"
+                                        >
+                                            अपडेट करें
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            return <AdminLogin />;
+        };
+
+        // Render the app
+        ReactDOM.render(<App />, document.getElementById('admin-root'));
+    </script>
+</body>
+</html>

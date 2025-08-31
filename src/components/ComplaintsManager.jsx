@@ -1,47 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Mic, MicOff, FileText, Send, Clock, CheckCircle, AlertTriangle,
-    X, Camera, Paperclip, MapPin, Calendar, User, Phone, Star,
-    MessageSquare, Eye, Download, Filter
+    Mic, MicOff, FileText, CheckCircle, AlertTriangle,
+    X, Calendar, User, MessageSquare, Eye, LogIn, RefreshCw
 } from 'lucide-react';
 import { geminiService } from '../services/geminiService';
 import { speechService } from '../services/speechService';
+import { sharedComplaintService } from '../services/sharedComplaintService';
+import { authService } from '../services/authService';
 
-const ComplaintsManager = ({ userInfo, selectedLanguage, onTabChange }) => {
-    const [complaints, setComplaints] = useState([
-        {
-            id: 'JAN001',
-            title: 'सड़क की मरम्मत',
-            description: 'मुख्य सड़क पर बड़े गड्ढे हैं जिससे दुर्घटना का खतरा है',
-            category: 'infrastructure',
-            status: 'in-progress',
-            priority: 'high',
-            date: '2024-08-20',
-            assignedTo: 'राम कुमार (सड़क विभाग)',
-            images: [],
-            updates: [
-                { date: '2024-08-22', message: 'शिकायत प्राप्त हुई और जांच शुरू की गई', status: 'received' },
-                { date: '2024-08-24', message: 'साइट का निरीक्षण किया गया', status: 'in-progress' }
-            ]
-        },
-        {
-            id: 'JAN002',
-            title: 'पानी की कमी',
-            description: 'पिछले 3 दिनों से पानी की सप्लाई नहीं आ रही है',
-            category: 'water',
-            status: 'resolved',
-            priority: 'high',
-            date: '2024-08-18',
-            assignedTo: 'सुनीता देवी (जल विभाग)',
-            images: [],
-            updates: [
-                { date: '2024-08-18', message: 'शिकायत दर्ज की गई', status: 'received' },
-                { date: '2024-08-19', message: 'पाइप लाइन की मरम्मत की गई', status: 'resolved' }
-            ]
-        }
-    ]);
-
+const ComplaintsManager = ({ userInfo, selectedLanguage, onTabChange, onComplaintSuccess, setUserInfo }) => {
+    const [complaints, setComplaints] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
     const [showNewComplaint, setShowNewComplaint] = useState(false);
+    const [selectedComplaint, setSelectedComplaint] = useState(null);
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
     const [transcript, setTranscript] = useState('');
     const [newComplaint, setNewComplaint] = useState({
@@ -51,9 +24,11 @@ const ComplaintsManager = ({ userInfo, selectedLanguage, onTabChange }) => {
         priority: 'medium',
         images: []
     });
-    const [selectedComplaint, setSelectedComplaint] = useState(null);
     const [filter, setFilter] = useState('all');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [notification, setNotification] = useState(null);
 
+    // Translations
     const translations = {
         hi: {
             complaints: 'शिकायतें',
@@ -76,9 +51,12 @@ const ComplaintsManager = ({ userInfo, selectedLanguage, onTabChange }) => {
             attachImage: 'फोटो जोड़ें',
             viewDetails: 'विवरण देखें',
             all: 'सभी',
-            pending: 'लंबित',
-            inProgress: 'प्रगति में',
+            submitted: 'दर्ज की गई',
+            under_review: 'समीक्षा में',
+            in_progress: 'प्रगति में',
             resolved: 'हल हुई',
+            closed: 'बंद',
+            rejected: 'अस्वीकृत',
             high: 'उच्च',
             medium: 'मध्यम',
             low: 'निम्न',
@@ -87,7 +65,10 @@ const ComplaintsManager = ({ userInfo, selectedLanguage, onTabChange }) => {
             electricity: 'बिजली',
             health: 'स्वास्थ्य',
             education: 'शिक्षा',
-            other: 'अन्य'
+            other: 'अन्य',
+            loadingComplaints: 'शिकायतें लोड हो रही हैं...',
+            loadingError: 'शिकायतें लोड करने में त्रुटि',
+            retry: 'पुनः प्रयास करें'
         },
         en: {
             complaints: 'Complaints',
@@ -110,9 +91,12 @@ const ComplaintsManager = ({ userInfo, selectedLanguage, onTabChange }) => {
             attachImage: 'Attach Image',
             viewDetails: 'View Details',
             all: 'All',
-            pending: 'Pending',
-            inProgress: 'In Progress',
+            submitted: 'Submitted',
+            under_review: 'Under Review',
+            in_progress: 'In Progress',
             resolved: 'Resolved',
+            closed: 'Closed',
+            rejected: 'Rejected',
             high: 'High',
             medium: 'Medium',
             low: 'Low',
@@ -121,7 +105,10 @@ const ComplaintsManager = ({ userInfo, selectedLanguage, onTabChange }) => {
             electricity: 'Electricity',
             health: 'Health',
             education: 'Education',
-            other: 'Other'
+            other: 'Other',
+            loadingComplaints: 'Loading complaints...',
+            loadingError: 'Failed to load complaints',
+            retry: 'Retry'
         },
         ur: {
             complaints: 'شکایات',
@@ -144,9 +131,12 @@ const ComplaintsManager = ({ userInfo, selectedLanguage, onTabChange }) => {
             attachImage: 'تصویر منسلک کریں',
             viewDetails: 'تفصیلات دیکھیں',
             all: 'تمام',
-            pending: 'زیر التواء',
-            inProgress: 'جاری',
+            submitted: 'جمع شدہ',
+            under_review: 'جائزہ میں',
+            in_progress: 'جاری',
             resolved: 'حل شدہ',
+            closed: 'بند',
+            rejected: 'مسترد',
             high: 'اعلیٰ',
             medium: 'درمیانہ',
             low: 'کم',
@@ -155,11 +145,50 @@ const ComplaintsManager = ({ userInfo, selectedLanguage, onTabChange }) => {
             electricity: 'بجلی',
             health: 'صحت',
             education: 'تعلیم',
-            other: 'دیگر'
+            other: 'دیگر',
+            loadingComplaints: 'شکایات لوڈ ہو رہی ہیں...',
+            loadingError: 'شکایات لوڈ کرنے میں خرابی',
+            retry: 'دوبارہ کوشش کریں'
         }
     };
 
     const t = translations[selectedLanguage] || translations.hi;
+    // Check if user is logged in
+    useEffect(() => {
+        const currentUser = authService.getCurrentUser();
+        setIsLoggedIn(!!currentUser);
+        if (currentUser) {
+            loadUserComplaints(currentUser.id);
+            
+            // Add real-time listener for complaint updates
+            const unsubscribe = sharedComplaintService.addListener(() => {
+                loadUserComplaints(currentUser.id);
+            });
+            
+            return unsubscribe;
+        } else {
+            setIsLoading(false);
+        }
+    }, [userInfo]);
+
+    const loadUserComplaints = async (userId) => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            const userComplaints = sharedComplaintService.getUserComplaints(userId);
+            setComplaints(userComplaints);
+        } catch (error) {
+            console.error('Error loading complaints:', error);
+            setError('Failed to load complaints');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const showNotification = (type, message) => {
+        setNotification({ type, message });
+        setTimeout(() => setNotification(null), 5000);
+    };
 
     const toggleRecording = async () => {
         if (isRecording) {
@@ -190,66 +219,94 @@ const ComplaintsManager = ({ userInfo, selectedLanguage, onTabChange }) => {
             }
         }
     };
-
     const handleSubmitComplaint = async () => {
-        if (!newComplaint.title || !newComplaint.description) {
-            alert('Please fill in all required fields');
+        if (!newComplaint.title || !newComplaint.description || !newComplaint.category) {
+            showNotification('error',
+                selectedLanguage === 'hi' ? 'कृपया सभी आवश्यक फील्ड भरें' :
+                    selectedLanguage === 'en' ? 'Please fill in all required fields' :
+                        'براہ کرم تمام ضروری فیلڈز بھریں'
+            );
             return;
         }
 
-        const complaint = {
-            id: `JAN${String(complaints.length + 1).padStart(3, '0')}`,
-            ...newComplaint,
-            status: 'pending',
-            date: new Date().toISOString().split('T')[0],
-            assignedTo: 'Processing...',
-            updates: [
-                {
-                    date: new Date().toISOString().split('T')[0],
-                    message: selectedLanguage === 'hi' ? 'शिकायत दर्ज की गई' :
-                        selectedLanguage === 'en' ? 'Complaint filed' :
-                            'شکایت درج کی گئی',
-                    status: 'received'
-                }
-            ]
-        };
+        setIsSubmitting(true);
 
-        setComplaints(prev => [complaint, ...prev]);
-        setNewComplaint({ title: '', description: '', category: '', priority: 'medium', images: [] });
-        setShowNewComplaint(false);
+        try {
+            const currentUser = authService.getCurrentUser();
+            if (!currentUser) {
+                throw new Error('User not logged in');
+            }
 
-        // Simulate AI processing
-        setTimeout(async () => {
-            try {
-                const aiResponse = await geminiService.processVoiceCommand(
-                    `New complaint filed: ${complaint.title}. ${complaint.description}. Please provide guidance on next steps.`,
-                    selectedLanguage,
-                    userInfo
+            const complaintData = {
+                title: newComplaint.title,
+                description: newComplaint.description,
+                category: newComplaint.category,
+                priority: newComplaint.priority,
+                location: `${currentUser.village}, ${currentUser.district}, ${currentUser.state}`,
+                contactNumber: currentUser.mobile,
+                attachments: newComplaint.images || []
+            };
+
+            const result = sharedComplaintService.addComplaint(complaintData, currentUser.id);
+
+            if (result.success) {
+                showNotification('success',
+                    selectedLanguage === 'hi' ? `शिकायत सफलतापूर्वक दर्ज की गई! शिकायत संख्या: ${result.complaint.id}` :
+                        selectedLanguage === 'en' ? `Complaint filed successfully! Complaint ID: ${result.complaint.id}` :
+                            `شکایت کامیابی سے درج کی گئی! شکایت نمبر: ${result.complaint.id}`
                 );
 
-                setComplaints(prev => prev.map(c =>
-                    c.id === complaint.id
-                        ? {
-                            ...c,
-                            updates: [...c.updates, {
-                                date: new Date().toISOString().split('T')[0],
-                                message: aiResponse,
-                                status: 'processing'
-                            }]
-                        }
-                        : c
-                ));
-            } catch (error) {
-                console.error('AI processing error:', error);
+                setNewComplaint({ title: '', description: '', category: '', priority: 'medium', images: [] });
+                setShowNewComplaint(false);
+                loadUserComplaints(currentUser.id);
+
+                if (onComplaintSuccess) {
+                    onComplaintSuccess(result.complaint);
+                }
+
+                setTimeout(async () => {
+                    try {
+                        const aiResponse = await geminiService.processVoiceCommand(
+                            `New complaint filed: ${result.complaint.title}. ${result.complaint.description}. Category: ${result.complaint.category}. Please provide guidance on next steps and expected timeline.`,
+                            selectedLanguage,
+                            currentUser
+                        );
+
+                        sharedComplaintService.updateComplaintStatus(
+                            result.complaint.id,
+                            'under_review',
+                            aiResponse
+                        );
+
+                        loadUserComplaints(currentUser.id);
+                    } catch (error) {
+                        console.error('AI processing error:', error);
+                    }
+                }, 2000);
+
+            } else {
+                throw new Error(result.error);
             }
-        }, 2000);
+        } catch (error) {
+            console.error('Error filing complaint:', error);
+            showNotification('error',
+                selectedLanguage === 'hi' ? `शिकायत दर्ज करने में त्रुटि: ${error.message}` :
+                    selectedLanguage === 'en' ? `Error filing complaint: ${error.message}` :
+                        `شکایت درج کرنے میں خرابی: ${error.message}`
+            );
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const getStatusColor = (status) => {
         switch (status) {
             case 'resolved': return 'bg-green-100 text-green-800';
-            case 'in-progress': return 'bg-blue-100 text-blue-800';
-            case 'pending': return 'bg-yellow-100 text-yellow-800';
+            case 'in_progress': return 'bg-blue-100 text-blue-800';
+            case 'under_review': return 'bg-orange-100 text-orange-800';
+            case 'submitted': return 'bg-yellow-100 text-yellow-800';
+            case 'closed': return 'bg-gray-100 text-gray-800';
+            case 'rejected': return 'bg-red-100 text-red-800';
             default: return 'bg-gray-100 text-gray-800';
         }
     };
@@ -268,8 +325,89 @@ const ComplaintsManager = ({ userInfo, selectedLanguage, onTabChange }) => {
         return complaint.status === filter;
     });
 
+    // If user is not logged in, show login prompt
+    if (!isLoggedIn) {
+        return (
+            <div className="min-h-[60vh] flex items-center justify-center">
+                <div className="text-center p-8 bg-white rounded-3xl shadow-xl border-4 border-blue-200 max-w-md mx-auto">
+                    <div className="bg-gradient-to-r from-blue-500 to-purple-600 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <LogIn className="w-10 h-10 text-white" />
+                    </div>
+                    <h3 className="text-2xl font-bold text-gray-800 mb-4">
+                        {selectedLanguage === 'hi' && 'लॉगिन आवश्यक'}
+                        {selectedLanguage === 'en' && 'Login Required'}
+                        {selectedLanguage === 'ur' && 'لاگ ان ضروری'}
+                    </h3>
+                    <p className="text-gray-600 mb-6 text-lg">
+                        {selectedLanguage === 'hi' && 'शिकायत दर्ज करने के लिए कृपया पहले लॉगिन करें'}
+                        {selectedLanguage === 'en' && 'Please login first to file complaints'}
+                        {selectedLanguage === 'ur' && 'شکایت درج کرنے کے لیے پہلے لاگ ان کریں'}
+                    </p>
+                    <button
+                        onClick={() => onTabChange && onTabChange('home')}
+                        className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-4 rounded-2xl hover:from-blue-700 hover:to-purple-700 transition-all font-bold text-lg transform hover:scale-105"
+                    >
+                        {selectedLanguage === 'hi' && 'लॉगिन करें'}
+                        {selectedLanguage === 'en' && 'Login Now'}
+                        {selectedLanguage === 'ur' && 'ابھی لاگ ان کریں'}
+                    </button>
+                </div>
+            </div>
+        );
+    }
+    // Loading state
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center p-20">
+                <div className="text-center">
+                    <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                    <p className="text-xl text-gray-600">📋 {t.loadingComplaints}</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Error state
+    if (error) {
+        return (
+            <div className="text-center p-20">
+                <AlertTriangle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                <p className="text-xl text-gray-600 mb-4">{t.loadingError}</p>
+                <button
+                    onClick={() => loadUserComplaints(userInfo?.id)}
+                    className="bg-blue-500 text-white px-6 py-3 rounded-2xl hover:bg-blue-600 transition-all"
+                >
+                    <RefreshCw className="w-5 h-5 inline mr-2" />
+                    {t.retry}
+                </button>
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-6">
+            {/* Notification */}
+            {notification && (
+                <div className={`fixed top-4 right-4 z-50 p-4 rounded-xl shadow-lg max-w-md ${notification.type === 'success'
+                    ? 'bg-green-500 text-white'
+                    : 'bg-red-500 text-white'
+                    }`}>
+                    <div className="flex items-center space-x-2">
+                        {notification.type === 'success' ? (
+                            <CheckCircle className="w-5 h-5" />
+                        ) : (
+                            <AlertTriangle className="w-5 h-5" />
+                        )}
+                        <span className="font-medium">{notification.message}</span>
+                        <button
+                            onClick={() => setNotification(null)}
+                            className="ml-auto p-1 hover:bg-white/20 rounded"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+                </div>
+            )}
             {/* Header */}
             <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold text-gray-800">{t.myComplaints}</h2>
@@ -285,7 +423,7 @@ const ComplaintsManager = ({ userInfo, selectedLanguage, onTabChange }) => {
             {/* Filter Tabs */}
             <div className="bg-white rounded-2xl p-2 shadow-lg">
                 <div className="flex space-x-2">
-                    {['all', 'pending', 'in-progress', 'resolved'].map((status) => (
+                    {['all', 'submitted', 'under_review', 'in_progress', 'resolved'].map((status) => (
                         <button
                             key={status}
                             onClick={() => setFilter(status)}
@@ -294,7 +432,7 @@ const ComplaintsManager = ({ userInfo, selectedLanguage, onTabChange }) => {
                                 : 'text-gray-600 hover:bg-gray-100'
                                 }`}
                         >
-                            {t[status === 'in-progress' ? 'inProgress' : status]}
+                            {t[status === 'in_progress' ? 'in_progress' : status]}
                         </button>
                     ))}
                 </div>
@@ -302,58 +440,82 @@ const ComplaintsManager = ({ userInfo, selectedLanguage, onTabChange }) => {
 
             {/* Complaints List */}
             <div className="space-y-4">
-                {filteredComplaints.map((complaint) => (
-                    <div key={complaint.id} className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all">
-                        <div className="flex items-start justify-between mb-4">
-                            <div className="flex-1">
-                                <div className="flex items-center space-x-3 mb-2">
-                                    <h3 className="text-lg font-bold text-gray-800">{complaint.title}</h3>
-                                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(complaint.status)}`}>
-                                        {t[complaint.status === 'in-progress' ? 'inProgress' : complaint.status]}
-                                    </span>
-                                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getPriorityColor(complaint.priority)}`}>
-                                        {t[complaint.priority]}
-                                    </span>
-                                </div>
-                                <p className="text-gray-600 mb-3">{complaint.description}</p>
-                                <div className="flex items-center space-x-4 text-sm text-gray-500">
-                                    <div className="flex items-center space-x-1">
-                                        <Calendar className="w-4 h-4" />
-                                        <span>{complaint.date}</span>
-                                    </div>
-                                    <div className="flex items-center space-x-1">
-                                        <User className="w-4 h-4" />
-                                        <span>{complaint.assignedTo}</span>
-                                    </div>
-                                    <div className="flex items-center space-x-1">
-                                        <FileText className="w-4 h-4" />
-                                        <span>{complaint.id}</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <button
-                                onClick={() => setSelectedComplaint(complaint)}
-                                className="bg-blue-50 text-blue-600 px-4 py-2 rounded-xl hover:bg-blue-100 transition-all flex items-center space-x-2"
-                            >
-                                <Eye className="w-4 h-4" />
-                                <span>{t.viewDetails}</span>
-                            </button>
+                {filteredComplaints.length === 0 ? (
+                    <div className="text-center py-12 bg-white rounded-2xl shadow-lg">
+                        <div className="bg-gray-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <FileText className="w-10 h-10 text-gray-400" />
                         </div>
-
-                        {/* Latest Update */}
-                        {complaint.updates.length > 0 && (
-                            <div className="bg-gray-50 rounded-xl p-4">
-                                <div className="flex items-center space-x-2 mb-2">
-                                    <MessageSquare className="w-4 h-4 text-blue-500" />
-                                    <span className="text-sm font-semibold text-gray-700">{t.updates}</span>
-                                </div>
-                                <p className="text-sm text-gray-600">{complaint.updates[complaint.updates.length - 1].message}</p>
-                            </div>
-                        )}
+                        <h3 className="text-xl font-bold text-gray-600 mb-2">
+                            {selectedLanguage === 'hi' && 'कोई शिकायत नहीं मिली'}
+                            {selectedLanguage === 'en' && 'No complaints found'}
+                            {selectedLanguage === 'ur' && 'کوئی شکایت نہیں ملی'}
+                        </h3>
+                        <p className="text-gray-500 mb-6">
+                            {selectedLanguage === 'hi' && 'अपनी पहली शिकायत दर्ज करें'}
+                            {selectedLanguage === 'en' && 'File your first complaint'}
+                            {selectedLanguage === 'ur' && 'اپنی پہلی شکایت درج کریں'}
+                        </p>
+                        <button
+                            onClick={() => setShowNewComplaint(true)}
+                            className="bg-gradient-to-r from-red-500 to-orange-600 text-white px-6 py-3 rounded-xl hover:shadow-lg transition-all transform hover:scale-105 flex items-center space-x-2 mx-auto"
+                        >
+                            <FileText className="w-5 h-5" />
+                            <span>{t.newComplaint}</span>
+                        </button>
                     </div>
-                ))}
-            </div>
+                ) : (
+                    filteredComplaints.map((complaint) => (
+                        <div key={complaint.id} className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all">
+                            <div className="flex items-start justify-between mb-4">
+                                <div className="flex-1">
+                                    <div className="flex items-center space-x-3 mb-2">
+                                        <h3 className="text-lg font-bold text-gray-800">{complaint.title}</h3>
+                                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(complaint.status)}`}>
+                                            {t[complaint.status]}
+                                        </span>
+                                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getPriorityColor(complaint.priority)}`}>
+                                            {t[complaint.priority]}
+                                        </span>
+                                    </div>
+                                    <p className="text-gray-600 mb-3">{complaint.description}</p>
+                                    <div className="flex items-center space-x-4 text-sm text-gray-500">
+                                        <div className="flex items-center space-x-1">
+                                            <Calendar className="w-4 h-4" />
+                                            <span>{new Date(complaint.createdAt).toLocaleDateString('hi-IN')}</span>
+                                        </div>
+                                        <div className="flex items-center space-x-1">
+                                            <User className="w-4 h-4" />
+                                            <span>{complaint.assignedDepartment}</span>
+                                        </div>
+                                        <div className="flex items-center space-x-1">
+                                            <FileText className="w-4 h-4" />
+                                            <span>{complaint.id}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setSelectedComplaint(complaint)}
+                                    className="bg-blue-50 text-blue-600 px-4 py-2 rounded-xl hover:bg-blue-100 transition-all flex items-center space-x-2"
+                                >
+                                    <Eye className="w-4 h-4" />
+                                    <span>{t.viewDetails}</span>
+                                </button>
+                            </div>
 
+                            {/* Latest Update */}
+                            {complaint.statusHistory && complaint.statusHistory.length > 0 && (
+                                <div className="bg-gray-50 rounded-xl p-4">
+                                    <div className="flex items-center space-x-2 mb-2">
+                                        <MessageSquare className="w-4 h-4 text-blue-500" />
+                                        <span className="text-sm font-semibold text-gray-700">{t.updates}</span>
+                                    </div>
+                                    <p className="text-sm text-gray-600">{complaint.statusHistory[complaint.statusHistory.length - 1].note}</p>
+                                </div>
+                            )}
+                        </div>
+                    ))
+                )}
+            </div>
             {/* New Complaint Modal */}
             {showNewComplaint && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -404,8 +566,7 @@ const ComplaintsManager = ({ userInfo, selectedLanguage, onTabChange }) => {
                                     </p>
                                 )}
                             </div>
-
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-semibold mb-2 text-gray-700">{t.category}</label>
                                     <select
@@ -413,7 +574,9 @@ const ComplaintsManager = ({ userInfo, selectedLanguage, onTabChange }) => {
                                         onChange={(e) => setNewComplaint(prev => ({ ...prev, category: e.target.value }))}
                                         className="w-full p-4 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                                     >
-                                        <option value="">{selectedLanguage === 'hi' ? 'चुनें' : selectedLanguage === 'en' ? 'Select' : 'منتخب کریں'}</option>
+                                        <option value="">
+                                            {selectedLanguage === 'hi' ? 'श्रेणी चुनें' : selectedLanguage === 'en' ? 'Select category' : 'قسم منتخب کریں'}
+                                        </option>
                                         <option value="infrastructure">{t.infrastructure}</option>
                                         <option value="water">{t.water}</option>
                                         <option value="electricity">{t.electricity}</option>
@@ -437,18 +600,33 @@ const ComplaintsManager = ({ userInfo, selectedLanguage, onTabChange }) => {
                                 </div>
                             </div>
 
-                            <div className="flex space-x-4 pt-4">
+                            <div className="flex items-center justify-end space-x-4 pt-6 border-t">
                                 <button
                                     onClick={() => setShowNewComplaint(false)}
-                                    className="flex-1 py-4 border-2 border-gray-300 rounded-xl hover:bg-gray-50 transition-all font-semibold text-gray-700"
+                                    className="px-6 py-3 text-gray-600 hover:bg-gray-100 rounded-xl transition-all"
                                 >
                                     {t.cancel}
                                 </button>
                                 <button
                                     onClick={handleSubmitComplaint}
-                                    className="flex-1 py-4 bg-gradient-to-r from-red-500 to-orange-600 text-white rounded-xl hover:shadow-lg transition-all font-semibold transform hover:scale-105"
+                                    disabled={isSubmitting}
+                                    className="bg-gradient-to-r from-red-500 to-orange-600 text-white px-8 py-3 rounded-xl hover:shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
                                 >
-                                    {t.submit}
+                                    {isSubmitting ? (
+                                        <>
+                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                            <span>
+                                                {selectedLanguage === 'hi' ? 'सबमिट हो रहा है...' :
+                                                    selectedLanguage === 'en' ? 'Submitting...' :
+                                                        'جمع ہو رہا ہے...'}
+                                            </span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <FileText className="w-5 h-5" />
+                                            <span>{t.submit}</span>
+                                        </>
+                                    )}
                                 </button>
                             </div>
                         </div>
@@ -459,7 +637,7 @@ const ComplaintsManager = ({ userInfo, selectedLanguage, onTabChange }) => {
             {/* Complaint Details Modal */}
             {selectedComplaint && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-3xl p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                    <div className="bg-white rounded-3xl p-8 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
                         <div className="flex items-center justify-between mb-6">
                             <h3 className="text-2xl font-bold text-gray-800">{selectedComplaint.title}</h3>
                             <button
@@ -471,47 +649,50 @@ const ComplaintsManager = ({ userInfo, selectedLanguage, onTabChange }) => {
                         </div>
 
                         <div className="space-y-6">
-                            <div className="flex items-center space-x-4">
-                                <span className={`px-4 py-2 rounded-full text-sm font-semibold ${getStatusColor(selectedComplaint.status)}`}>
-                                    {t[selectedComplaint.status === 'in-progress' ? 'inProgress' : selectedComplaint.status]}
-                                </span>
-                                <span className={`px-4 py-2 rounded-full text-sm font-semibold ${getPriorityColor(selectedComplaint.priority)}`}>
-                                    {t[selectedComplaint.priority]}
-                                </span>
-                            </div>
-
-                            <div>
-                                <h4 className="font-semibold text-gray-800 mb-2">{t.description}</h4>
-                                <p className="text-gray-600">{selectedComplaint.description}</p>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <h4 className="font-semibold text-gray-800 mb-1">{t.date}</h4>
-                                    <p className="text-gray-600">{selectedComplaint.date}</p>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="bg-gray-50 rounded-xl p-4">
+                                    <div className="text-sm text-gray-600 mb-1">{t.status}</div>
+                                    <span className={`px-3 py-1 rounded-full text-sm font-semibold ${getStatusColor(selectedComplaint.status)}`}>
+                                        {t[selectedComplaint.status]}
+                                    </span>
                                 </div>
-                                <div>
-                                    <h4 className="font-semibold text-gray-800 mb-1">{t.assignedTo}</h4>
-                                    <p className="text-gray-600">{selectedComplaint.assignedTo}</p>
+                                <div className="bg-gray-50 rounded-xl p-4">
+                                    <div className="text-sm text-gray-600 mb-1">{t.priority}</div>
+                                    <span className={`px-3 py-1 rounded-full text-sm font-semibold ${getPriorityColor(selectedComplaint.priority)}`}>
+                                        {t[selectedComplaint.priority]}
+                                    </span>
+                                </div>
+                                <div className="bg-gray-50 rounded-xl p-4">
+                                    <div className="text-sm text-gray-600 mb-1">{t.date}</div>
+                                    <div className="font-semibold">{new Date(selectedComplaint.createdAt).toLocaleDateString('hi-IN')}</div>
                                 </div>
                             </div>
 
                             <div>
-                                <h4 className="font-semibold text-gray-800 mb-4">{t.updates}</h4>
-                                <div className="space-y-3">
-                                    {selectedComplaint.updates.map((update, index) => (
-                                        <div key={index} className="bg-gray-50 rounded-xl p-4">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <span className="text-sm font-semibold text-gray-700">{update.date}</span>
-                                                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(update.status)}`}>
-                                                    {t[update.status === 'in-progress' ? 'inProgress' : update.status]}
-                                                </span>
+                                <h4 className="text-lg font-bold text-gray-800 mb-3">{t.description}</h4>
+                                <p className="text-gray-600 bg-gray-50 rounded-xl p-4">{selectedComplaint.description}</p>
+                            </div>
+
+                            {selectedComplaint.statusHistory && selectedComplaint.statusHistory.length > 0 && (
+                                <div>
+                                    <h4 className="text-lg font-bold text-gray-800 mb-3">{t.updates}</h4>
+                                    <div className="space-y-3">
+                                        {selectedComplaint.statusHistory.map((update, index) => (
+                                            <div key={index} className="bg-gray-50 rounded-xl p-4">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(update.status)}`}>
+                                                        {t[update.status]}
+                                                    </span>
+                                                    <span className="text-sm text-gray-500">
+                                                        {new Date(update.timestamp).toLocaleDateString('hi-IN')}
+                                                    </span>
+                                                </div>
+                                                <p className="text-gray-600">{update.note}</p>
                                             </div>
-                                            <p className="text-gray-600">{update.message}</p>
-                                        </div>
-                                    ))}
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
                     </div>
                 </div>

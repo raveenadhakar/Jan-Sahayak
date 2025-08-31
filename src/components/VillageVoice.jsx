@@ -10,6 +10,9 @@ import {
 import { speechService } from '../services/speechService';
 import { weatherService } from '../services/weatherService';
 import { newsService } from '../services/newsService';
+import { locationDataService } from '../services/locationDataService';
+import { murfVoiceService } from '../services/murfVoiceService';
+import { authService } from '../services/authService';
 
 const VillageVoice = ({ userInfo, selectedLanguage }) => {
   const [activeSection, setActiveSection] = useState('weather');
@@ -21,6 +24,8 @@ const VillageVoice = ({ userInfo, selectedLanguage }) => {
   const [weatherData, setWeatherData] = useState(null);
   const [weatherForecast, setWeatherForecast] = useState([]);
   const [latestNews, setLatestNews] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [userLocation, setUserLocation] = useState({ state: 'Uttar Pradesh', district: 'Muzaffarnagar', village: 'Muzaffarnagar' });
 
   const [agricultureData, setAgricultureData] = useState([
     { crop: 'गेहूं', price: '₹2,150', change: '+₹50', trend: 'up', market: 'मुज़फ्फरनगर मंडी' },
@@ -97,6 +102,8 @@ const VillageVoice = ({ userInfo, selectedLanguage }) => {
       listen: 'सुनें',
       stop: 'रोकें',
       high: 'महत्वपूर्ण',
+      latestNews: 'ताज़ा समाचार',
+      refresh: 'रीफ्रेश करें',
       medium: 'सामान्य',
       low: 'कम',
       meeting: 'बैठक',
@@ -138,6 +145,8 @@ const VillageVoice = ({ userInfo, selectedLanguage }) => {
       listen: 'Listen',
       stop: 'Stop',
       high: 'High',
+      latestNews: 'Latest News',
+      refresh: 'Refresh',
       medium: 'Medium',
       low: 'Low',
       meeting: 'Meeting',
@@ -179,6 +188,8 @@ const VillageVoice = ({ userInfo, selectedLanguage }) => {
       listen: 'سنیں',
       stop: 'رکیں',
       high: 'اہم',
+      latestNews: 'تازہ خبریں',
+      refresh: 'ریفریش کریں',
       medium: 'عام',
       low: 'کم',
       meeting: 'میٹنگ',
@@ -205,63 +216,107 @@ const VillageVoice = ({ userInfo, selectedLanguage }) => {
 
   const t = translations[selectedLanguage] || translations.hi;
 
-  // Load weather and news data
+  // Load user data and location-based content
   useEffect(() => {
-    loadWeatherData();
-    loadNewsData();
-  }, [selectedLanguage, userInfo.village]);
+    const user = authService.getCurrentUser();
+    setCurrentUser(user);
+    
+    if (user && user.state && user.district && user.village) {
+      setUserLocation({
+        state: user.state,
+        district: user.district,
+        village: user.village
+      });
+      loadLocationBasedData(user.state, user.district, user.village);
+    } else {
+      loadDefaultData();
+    }
+  }, [selectedLanguage, userInfo]);
 
-  const loadWeatherData = async () => {
+  const loadLocationBasedData = async (state, district, village) => {
     setIsLoading(true);
     setError(null);
     try {
-      const city = userInfo.village || 'Muzaffarnagar';
-      const [current, forecast] = await Promise.all([
-        weatherService.getCurrentWeather(city, selectedLanguage),
-        weatherService.getWeatherForecast(city, selectedLanguage)
-      ]);
-      setWeatherData(current);
-      setWeatherForecast(forecast);
+      // Load weather data for user's location
+      const weather = await weatherService.getLocationWeather(state, district, village);
+      setWeatherData(weather.current);
+      setWeatherForecast(weather.forecast);
+
+      // Load location-based news
+      const news = await newsService.getLocationNews(state, district, selectedLanguage);
+      setLatestNews(news);
+
     } catch (error) {
-      console.error('Error loading weather data:', error);
-      setError('Weather data unavailable');
-      // Set mock data as fallback
-      setWeatherData({
-        temperature: 28,
-        humidity: 65,
-        windSpeed: 12,
-        localizedCondition: 'बादल',
-        city: userInfo.village || 'मुज़फ्फरनगर'
-      });
-      setWeatherForecast([
-        { dayName: 'आज', maxTemp: 28, minTemp: 18, localizedCondition: 'बादल' },
-        { dayName: 'कल', maxTemp: 30, minTemp: 20, localizedCondition: 'धूप' },
-        { dayName: 'परसों', maxTemp: 26, minTemp: 16, localizedCondition: 'बारिश' }
-      ]);
+      console.error('Location data loading error:', error);
+      setError(selectedLanguage === 'hi' ? 'डेटा लोड करने में समस्या हुई' : selectedLanguage === 'en' ? 'Error loading data' : 'ڈیٹا لوڈ کرنے میں خرابی');
+      loadDefaultData(); // Fallback to default data
     } finally {
       setIsLoading(false);
     }
   };
 
-  const loadNewsData = async () => {
+  const loadDefaultData = async () => {
+    setIsLoading(true);
+    setError(null);
     try {
-      const [general, government, agriculture] = await Promise.all([
-        newsService.getLatestNews('भारत समाचार', selectedLanguage, 3),
-        newsService.getGovernmentNews(selectedLanguage),
-        newsService.getAgricultureNews(selectedLanguage)
+      const city = userInfo?.village || 'Muzaffarnagar';
+      const [current, forecast, news] = await Promise.all([
+        weatherService.getCurrentWeather(city, 'Uttar Pradesh', selectedLanguage),
+        weatherService.getWeatherForecast(city, selectedLanguage),
+        newsService.getLatestNews('भारत समाचार', selectedLanguage, 8)
       ]);
-      setLatestNews([...government, ...agriculture, ...general].slice(0, 5));
+      setWeatherData(current);
+      setWeatherForecast(forecast);
+      setLatestNews(news);
     } catch (error) {
-      console.error('Error loading news data:', error);
-      // Use mock news data
-      setLatestNews(newsService.getMockNews(selectedLanguage));
+      console.error('Error loading default data:', error);
+      setError('Data unavailable');
+      // Set mock data as fallback
+      setWeatherData({
+        temperature: 28,
+        humidity: 65,
+        windSpeed: 12,
+        localizedCondition: selectedLanguage === 'hi' ? 'बादल' : selectedLanguage === 'en' ? 'Cloudy' : 'بادل',
+        city: userInfo?.village || (selectedLanguage === 'hi' ? 'मुज़फ्फरनगर' : selectedLanguage === 'en' ? 'Muzaffarnagar' : 'مظفر نگر')
+      });
+      setWeatherForecast([
+        { 
+          dayName: selectedLanguage === 'hi' ? 'आज' : selectedLanguage === 'en' ? 'Today' : 'آج', 
+          maxTemp: 28, 
+          minTemp: 18, 
+          localizedCondition: selectedLanguage === 'hi' ? 'बादल' : selectedLanguage === 'en' ? 'Cloudy' : 'بادل' 
+        },
+        { 
+          dayName: selectedLanguage === 'hi' ? 'कल' : selectedLanguage === 'en' ? 'Tomorrow' : 'کل', 
+          maxTemp: 30, 
+          minTemp: 20, 
+          localizedCondition: selectedLanguage === 'hi' ? 'धूप' : selectedLanguage === 'en' ? 'Sunny' : 'دھوپ' 
+        },
+        { 
+          dayName: selectedLanguage === 'hi' ? 'परसों' : selectedLanguage === 'en' ? 'Day After' : 'پرسوں', 
+          maxTemp: 26, 
+          minTemp: 16, 
+          localizedCondition: selectedLanguage === 'hi' ? 'बारिश' : selectedLanguage === 'en' ? 'Rainy' : 'بارش' 
+        }
+      ]);
+      
+      // Always provide news data using the newsService mock data
+      const mockNews = newsService.getMockNews(selectedLanguage);
+      setLatestNews(mockNews);
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  // News data is now loaded in loadLocationBasedData function
 
   const speakContent = async (content, id) => {
     if (isSpeaking && currentSpeakingId === id) {
       try {
-        speechService.webSpeechTTS('', selectedLanguage);
+        // Stop current speech
+        if (window.speechSynthesis) {
+          window.speechSynthesis.cancel();
+        }
       } catch (error) {
         console.error('Error stopping speech:', error);
       }
@@ -274,9 +329,20 @@ const VillageVoice = ({ userInfo, selectedLanguage }) => {
     setCurrentSpeakingId(id);
 
     try {
-      await speechService.textToSpeech(content, selectedLanguage);
+      // Try Murf Voice API first, fallback to browser TTS
+      const result = await murfVoiceService.textToSpeech(content, selectedLanguage);
+      if (!result.success) {
+        // Fallback to browser TTS
+        await speechService.textToSpeech(content, selectedLanguage);
+      }
     } catch (error) {
       console.error('Speech error:', error);
+      // Final fallback
+      try {
+        await speechService.textToSpeech(content, selectedLanguage);
+      } catch (fallbackError) {
+        console.error('Fallback speech error:', fallbackError);
+      }
     } finally {
       setIsSpeaking(false);
       setCurrentSpeakingId(null);
@@ -298,7 +364,11 @@ const VillageVoice = ({ userInfo, selectedLanguage }) => {
         <div className="flex items-center justify-center p-20">
           <div className="text-center">
             <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-xl text-gray-600">🌤️ मौसम की जानकारी लोड हो रही है...</p>
+            <p className="text-xl text-gray-600">
+              🌤️ {selectedLanguage === 'hi' && 'मौसम की जानकारी लोड हो रही है...'}
+              {selectedLanguage === 'en' && 'Loading weather information...'}
+              {selectedLanguage === 'ur' && 'موسمی معلومات لوڈ ہو رہی ہیں...'}
+            </p>
           </div>
         </div>
       );
@@ -310,11 +380,19 @@ const VillageVoice = ({ userInfo, selectedLanguage }) => {
           <AlertTriangle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
           <p className="text-xl text-gray-600 mb-4">मौसम की जानकारी उपलब्ध नहीं है</p>
           <button 
-            onClick={loadWeatherData}
+            onClick={() => {
+              if (userInfo && userInfo.district && userInfo.state) {
+                loadLocationBasedData();
+              } else {
+                loadDefaultData();
+              }
+            }}
             className="bg-blue-500 text-white px-6 py-3 rounded-2xl hover:bg-blue-600 transition-all"
           >
             <RefreshCw className="w-5 h-5 inline mr-2" />
-            पुनः प्रयास करें
+            {selectedLanguage === 'hi' && 'पुनः प्रयास करें'}
+            {selectedLanguage === 'en' && 'Retry'}
+            {selectedLanguage === 'ur' && 'دوبارہ کوشش کریں'}
           </button>
         </div>
       );
@@ -323,35 +401,43 @@ const VillageVoice = ({ userInfo, selectedLanguage }) => {
     return (
       <div className="space-y-8">
         {/* Current Weather */}
-        <div className="bg-village-sky rounded-3xl p-8 text-white shadow-village-xl border-4 border-white card-village">
+        <div className="bg-gradient-to-br from-blue-500 via-blue-600 to-purple-600 rounded-3xl p-8 text-white shadow-2xl border-4 border-white">
           <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-responsive-3xl font-bold mb-4 text-shadow-lg">
-                🌤️ {t.todayWeather}
+            <div className="flex-1">
+              <h3 className="text-3xl font-bold mb-4 flex items-center space-x-3">
+                <span className="text-4xl">{weatherData.icon}</span>
+                <span>{t.todayWeather}</span>
               </h3>
-              <p className="text-xl mb-4 opacity-90">📍 {weatherData.city}</p>
-              <div className="flex items-center space-x-6">
+              <div className="flex items-center space-x-2 mb-4 text-blue-100">
+                <MapPin className="w-5 h-5" />
+                <span className="text-xl font-semibold">
+                  {userLocation.village}, {userLocation.district}
+                </span>
+                {currentUser && currentUser.profileComplete && (
+                  <span className="bg-green-400 text-green-900 px-2 py-1 rounded-full text-xs font-bold">
+                    ✓ {selectedLanguage === 'hi' ? 'सत्यापित' : selectedLanguage === 'en' ? 'Verified' : 'تصدیق شدہ'}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center space-x-8">
                 <div className="flex items-center space-x-3">
-                  <Thermometer className="w-10 h-10 icon-bounce" />
-                  <span className="text-5xl font-bold text-shadow">{weatherData.temperature}°C</span>
+                  <Thermometer className="w-12 h-12 text-yellow-300" />
+                  <span className="text-6xl font-bold">{weatherData.temperature}°C</span>
                 </div>
                 <div className="text-center">
-                  <div className="text-6xl mb-2">
-                    {weatherData.condition === 'Clear' && '☀️'}
-                    {weatherData.condition === 'Clouds' && '☁️'}
-                    {weatherData.condition === 'Rain' && '🌧️'}
-                    {weatherData.condition === 'Drizzle' && '🌦️'}
-                    {weatherData.condition === 'Thunderstorm' && '⛈️'}
-                    {weatherData.condition === 'Snow' && '❄️'}
-                    {weatherData.condition === 'Mist' && '🌫️'}
-                  </div>
-                  <p className="text-lg font-medium">{weatherData.localizedCondition}</p>
+                  <div className="text-7xl mb-2">{weatherData.icon}</div>
+                  <p className="text-xl font-medium">{weatherData.condition}</p>
+                  <p className="text-blue-200 text-sm mt-1">{weatherData.advice}</p>
                 </div>
               </div>
             </div>
             <button
               onClick={() => speakContent(
-                `${weatherData.city} में आज का मौसम: तापमान ${weatherData.temperature} डिग्री सेल्सियस, ${weatherData.localizedCondition}, नमी ${weatherData.humidity} प्रतिशत, हवा की गति ${weatherData.windSpeed} किलोमीटर प्रति घंटा`,
+                selectedLanguage === 'hi' 
+                  ? `${weatherData.city} में आज का मौसम: तापमान ${weatherData.temperature} डिग्री सेल्सियस, ${weatherData.localizedCondition}, नमी ${weatherData.humidity} प्रतिशत, हवा की गति ${weatherData.windSpeed} किलोमीटर प्रति घंटा`
+                  : selectedLanguage === 'en'
+                  ? `Today's weather in ${weatherData.city}: Temperature ${weatherData.temperature} degrees Celsius, ${weatherData.localizedCondition}, Humidity ${weatherData.humidity} percent, Wind speed ${weatherData.windSpeed} kilometers per hour`
+                  : `${weatherData.city} میں آج کا موسم: درجہ حرارت ${weatherData.temperature} ڈگری سیلسیس، ${weatherData.localizedCondition}، نمی ${weatherData.humidity} فیصد، ہوا کی رفتار ${weatherData.windSpeed} کلومیٹر فی گھنٹہ`,
                 'weather-current'
               )}
               className="bg-white/20 p-4 rounded-2xl hover:bg-white/30 transition-all border-2 border-white/30 btn-village"
@@ -404,7 +490,13 @@ const VillageVoice = ({ userInfo, selectedLanguage }) => {
               <span>{t.forecast}</span>
             </h4>
             <button 
-              onClick={loadWeatherData}
+              onClick={() => {
+                if (userInfo && userInfo.district && userInfo.state) {
+                  loadLocationBasedData();
+                } else {
+                  loadDefaultData();
+                }
+              }}
               className="p-2 text-gray-500 hover:text-blue-500 transition-all"
             >
               <RefreshCw className="w-5 h-5" />
@@ -437,49 +529,127 @@ const VillageVoice = ({ userInfo, selectedLanguage }) => {
           <div className="flex items-center justify-between mb-6">
             <h4 className="text-2xl font-bold text-gray-800 flex items-center space-x-3">
               <div className="text-3xl">📰</div>
-              <span>ताज़ा समाचार</span>
+              <span>
+                {selectedLanguage === 'hi' && 'ताज़ा समाचार'}
+                {selectedLanguage === 'en' && 'Latest News'}
+                {selectedLanguage === 'ur' && 'تازہ خبریں'}
+              </span>
             </h4>
             <button 
-              onClick={loadNewsData}
+              onClick={() => {
+                if (userInfo && userInfo.district && userInfo.state) {
+                  loadLocationBasedData();
+                } else {
+                  loadDefaultData();
+                }
+              }}
               className="p-2 text-gray-500 hover:text-blue-500 transition-all"
             >
               <RefreshCw className="w-5 h-5" />
             </button>
           </div>
-          <div className="space-y-4">
-            {latestNews.slice(0, 3).map((news, index) => (
-              <div key={news.id} className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl border-2 border-blue-200 hover:shadow-lg transition-all card-village">
+          <div className="space-y-6">
+            {latestNews.slice(0, 5).map((news, index) => (
+              <div key={news.id} className="bg-white rounded-3xl p-6 shadow-xl border-4 border-gray-100 hover:shadow-2xl transition-all transform hover:scale-102">
                 <div className="flex items-start space-x-4">
-                  <div className="text-2xl">
+                  <div className="text-4xl flex-shrink-0">
                     {news.category === 'government' && '🏛️'}
                     {news.category === 'agriculture' && '🌾'}
                     {news.category === 'weather' && '🌤️'}
                     {news.category === 'health' && '🏥'}
+                    {news.category === 'infrastructure' && '🏗️'}
+                    {news.category === 'education' && '📚'}
                     {news.category === 'general' && '📢'}
                   </div>
                   <div className="flex-1">
-                    <h5 className="font-bold text-gray-800 mb-2">{news.title}</h5>
-                    <p className="text-gray-600 text-sm mb-2 line-clamp-2">{news.description}</p>
+                    <div className="flex items-center space-x-2 mb-2">
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                        news.priority === 'high' ? 'bg-red-100 text-red-800' :
+                        news.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-green-100 text-green-800'
+                      }`}>
+                        {news.priority === 'high' && (selectedLanguage === 'hi' ? 'महत्वपूर्ण' : selectedLanguage === 'en' ? 'Important' : 'اہم')}
+                        {news.priority === 'medium' && (selectedLanguage === 'hi' ? 'सामान्य' : selectedLanguage === 'en' ? 'Medium' : 'عام')}
+                        {news.priority === 'low' && (selectedLanguage === 'hi' ? 'कम' : selectedLanguage === 'en' ? 'Low' : 'کم')}
+                      </span>
+                      <span className="text-xs text-gray-500 flex items-center space-x-1">
+                        <Clock className="w-3 h-3" />
+                        <span>{news.publishedAt}</span>
+                      </span>
+                    </div>
+                    
+                    <h5 className="font-bold text-gray-800 mb-3 text-lg leading-tight">{news.title}</h5>
+                    
+                    <p className="text-gray-600 mb-3 leading-relaxed">{news.description}</p>
+                    
+                    {news.summary && (
+                      <p className="text-blue-700 text-sm mb-3 bg-blue-50 p-2 rounded-lg border-l-4 border-blue-400">
+                        💡 {news.summary}
+                      </p>
+                    )}
+                    
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-500">📍 {news.source}</span>
-                      <button
-                        onClick={() => speakContent(
-                          `समाचार: ${news.title}। ${news.description}`,
-                          `news-${news.id}`
+                      <div className="flex items-center space-x-4">
+                        <span className="text-sm text-gray-500 flex items-center space-x-1">
+                          <Building2 className="w-4 h-4" />
+                          <span>{news.source}</span>
+                        </span>
+                        {news.readingTime && (
+                          <span className="text-sm text-gray-500 flex items-center space-x-1">
+                            <Clock className="w-4 h-4" />
+                            <span>{news.readingTime} {selectedLanguage === 'hi' ? 'मिनट' : selectedLanguage === 'en' ? 'min' : 'منٹ'}</span>
+                          </span>
                         )}
-                        className="p-2 text-blue-500 hover:bg-blue-100 rounded-full transition-all"
-                      >
-                        {isSpeaking && currentSpeakingId === `news-${news.id}` ? (
-                          <VolumeX className="w-4 h-4 animate-pulse" />
-                        ) : (
-                          <Volume2 className="w-4 h-4" />
+                      </div>
+                      
+                      <div className="flex items-center space-x-2">
+                        {news.url && (
+                          <a
+                            href={news.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 text-blue-500 hover:bg-blue-100 rounded-full transition-all"
+                            title={selectedLanguage === 'hi' ? 'पूरी खबर पढ़ें' : selectedLanguage === 'en' ? 'Read full news' : 'مکمل خبر پڑھیں'}
+                          >
+                            <ExternalLink className="w-5 h-5" />
+                          </a>
                         )}
-                      </button>
+                        
+                        <button
+                          onClick={() => speakContent(
+                            selectedLanguage === 'hi' 
+                              ? `${news.title}। ${news.description}`
+                              : selectedLanguage === 'en'
+                              ? `${news.title}. ${news.description}`
+                              : `${news.title}۔ ${news.description}`,
+                            `news-${news.id}`
+                          )}
+                          className="p-2 text-green-500 hover:bg-green-100 rounded-full transition-all"
+                          title={selectedLanguage === 'hi' ? 'सुनें' : selectedLanguage === 'en' ? 'Listen' : 'سنیں'}
+                        >
+                          {isSpeaking && currentSpeakingId === `news-${news.id}` ? (
+                            <VolumeX className="w-5 h-5 animate-pulse" />
+                          ) : (
+                            <Volume2 className="w-5 h-5" />
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             ))}
+            
+            {latestNews.length === 0 && (
+              <div className="text-center p-12 bg-gray-50 rounded-3xl border-4 border-gray-200">
+                <Newspaper className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <p className="text-xl text-gray-600">
+                  {selectedLanguage === 'hi' && 'कोई समाचार उपलब्ध नहीं है'}
+                  {selectedLanguage === 'en' && 'No news available'}
+                  {selectedLanguage === 'ur' && 'کوئی خبر دستیاب نہیں'}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>

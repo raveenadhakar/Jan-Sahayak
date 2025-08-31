@@ -7,11 +7,16 @@ import {
 } from 'lucide-react';
 import { speechService } from '../services/speechService';
 import { realDataService } from '../services/realDataService';
+import { downloadService } from '../services/downloadService';
+import { locationService } from '../services/locationService';
+import { authService } from '../services/authService';
 
 const GovernmentSchemes = ({ userInfo, selectedLanguage }) => {
   const [schemes, setSchemes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [eligibilityInfo, setEligibilityInfo] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
 
   // Load real scheme data
   useEffect(() => {
@@ -22,15 +27,43 @@ const GovernmentSchemes = ({ userInfo, selectedLanguage }) => {
     setIsLoading(true);
     setError(null);
     try {
-      const realSchemes = await realDataService.getRealGovernmentSchemes(
-        userInfo.state || 'Uttar Pradesh',
-        userInfo.district || 'Muzaffarnagar'
-      );
-      setSchemes(realSchemes);
+      const user = authService.getCurrentUser();
+      setCurrentUser(user);
+      
+      if (user && user.state && user.district) {
+        // Get location-based schemes and eligibility
+        const eligibility = locationService.checkSchemeEligibility(user);
+        setEligibilityInfo(eligibility);
+        
+        // Convert eligible schemes to display format
+        const schemeData = eligibility.eligible.map(scheme => ({
+          id: scheme.name.toLowerCase().replace(/[^a-z0-9]/g, ''),
+          name: scheme.name,
+          nameHi: scheme.description,
+          nameEn: scheme.name,
+          nameUr: scheme.name,
+          description: scheme.benefits,
+          descriptionHi: scheme.benefits,
+          descriptionEn: scheme.benefits,
+          descriptionUr: scheme.benefits,
+          benefits: scheme.benefits,
+          requirements: scheme.requirements,
+          eligible: true,
+          status: 'active',
+          category: 'government',
+          applicationProcess: 'Online/Offline application available',
+          documents: scheme.requirements,
+          contactInfo: '1800-180-1551'
+        }));
+        
+        setSchemes(schemeData);
+      } else {
+        // Fallback to mock data if user profile incomplete
+        setSchemes(getMockSchemes());
+      }
     } catch (error) {
       console.error('Error loading scheme data:', error);
       setError('Failed to load scheme data');
-      // Fallback to mock data
       setSchemes(getMockSchemes());
     } finally {
       setIsLoading(false);
@@ -641,7 +674,17 @@ const GovernmentSchemes = ({ userInfo, selectedLanguage }) => {
                 </button>
               )}
 
-              <button className="bg-gradient-to-r from-gray-500 to-gray-600 text-white px-10 py-5 rounded-2xl hover:from-gray-600 hover:to-gray-700 transition-all flex items-center space-x-4 font-bold shadow-xl transform hover:scale-105 text-lg border-3 border-gray-300">
+              <button
+                onClick={() => {
+                  const result = downloadService.downloadSchemeInfo(selectedScheme, userInfo, selectedLanguage);
+                  if (result.success) {
+                    alert('योजना की जानकारी डाउनलोड हो गई!');
+                  } else {
+                    alert('डाउनलोड में समस्या हुई। कृपया पुनः प्रयास करें।');
+                  }
+                }}
+                className="bg-gradient-to-r from-gray-500 to-gray-600 text-white px-10 py-5 rounded-2xl hover:from-gray-600 hover:to-gray-700 transition-all flex items-center space-x-4 font-bold shadow-xl transform hover:scale-105 text-lg border-3 border-gray-300"
+              >
                 <Download className="w-6 h-6" />
                 <span>{t.download}</span>
               </button>

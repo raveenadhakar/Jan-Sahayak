@@ -85,6 +85,19 @@ class AuthService {
       errors.push('State name is required');
     }
 
+    // Additional validations for enhanced profile
+    if (userData.age && (userData.age < 1 || userData.age > 120)) {
+      errors.push('Please enter a valid age');
+    }
+
+    if (userData.annualIncome && userData.annualIncome < 0) {
+      errors.push('Annual income cannot be negative');
+    }
+
+    if (userData.familySize && (userData.familySize < 1 || userData.familySize > 20)) {
+      errors.push('Please enter a valid family size');
+    }
+
     return errors;
   }
 

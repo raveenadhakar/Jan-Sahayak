@@ -1,265 +1,264 @@
+// Enhanced Weather Service with location-based data
 class WeatherService {
   constructor() {
-    this.tavilyApiKey = import.meta.env.VITE_TAVILY_API_KEY || '';
-    this.baseUrl = 'https://api.tavily.com/search';
+    this.apiKey = import.meta.env.VITE_WEATHER_API_KEY;
+    this.baseUrl = 'https://api.openweathermap.org/data/2.5';
+    this.isEnabled = !!this.apiKey;
   }
 
-  async getCurrentWeather(city = 'Muzaffarnagar', language = 'hi') {
-    if (!this.apiKey) {
-      console.warn('Weather API key not configured, using mock data');
-      return this.getMockWeather(language);
+  // Get weather for user's location
+  async getLocationWeather(state, district, village) {
+    if (!this.isEnabled) {
+      return this.getMockWeatherData(district || 'Muzaffarnagar');
     }
 
     try {
-      const response = await fetch(
-        `${this.baseUrl}/weather?q=${city},IN&appid=${this.apiKey}&units=metric&lang=${this.getWeatherLang(language)}`
+      // First get coordinates for the location
+      const location = `${village}, ${district}, ${state}, India`;
+      const geoResponse = await fetch(
+        `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(location)}&limit=1&appid=${this.apiKey}`
       );
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      
+      if (!geoResponse.ok) {
+        throw new Error('Location not found');
+      }
+      
+      const geoData = await geoResponse.json();
+      if (geoData.length === 0) {
+        throw new Error('Location coordinates not found');
       }
 
-      const data = await response.json();
-      return this.formatWeatherData(data, language);
+      const { lat, lon } = geoData[0];
+
+      // Get current weather
+      const weatherResponse = await fetch(
+        `${this.baseUrl}/weather?lat=${lat}&lon=${lon}&appid=${this.apiKey}&units=metric&lang=hi`
+      );
+
+      if (!weatherResponse.ok) {
+        throw new Error('Weather data not available');
+      }
+
+      const weatherData = await weatherResponse.json();
+
+      // Get forecast
+      const forecastResponse = await fetch(
+        `${this.baseUrl}/forecast?lat=${lat}&lon=${lon}&appid=${this.apiKey}&units=metric&lang=hi`
+      );
+
+      const forecastData = forecastResponse.ok ? await forecastResponse.json() : null;
+
+      return this.formatWeatherData(weatherData, forecastData, district);
     } catch (error) {
-      console.error('Weather API Error:', error);
-      return this.getMockWeather(language);
+      console.error('Weather API error:', error);
+      return this.getMockWeatherData(district || 'Muzaffarnagar');
     }
   }
 
-  async getWeatherForecast(city = 'Muzaffarnagar', language = 'hi') {
-    if (!this.apiKey) {
-      return this.getMockForecast(language);
-    }
+  // Format weather data for display
+  formatWeatherData(current, forecast, location) {
+    const weatherConditions = {
+      'clear sky': { hi: 'साफ आसमान', icon: '☀️', advice: 'खेती के लिए अच्छा दिन है।' },
+      'few clouds': { hi: 'हल्के बादल', icon: '🌤️', advice: 'मौसम सुहावना है।' },
+      'scattered clouds': { hi: 'बिखरे बादल', icon: '⛅', advice: 'बादल छाए हुए हैं।' },
+      'broken clouds': { hi: 'घने बादल', icon: '☁️', advice: 'बारिश की संभावना है।' },
+      'shower rain': { hi: 'बौछारें', icon: '🌦️', advice: 'फसलों को पानी मिलेगा।' },
+      'rain': { hi: 'बारिश', icon: '🌧️', advice: 'बारिश हो रही है, सावधान रहें।' },
+      'thunderstorm': { hi: 'तूफान', icon: '⛈️', advice: 'तूफान की चेतावनी, घर में रहें।' },
+      'snow': { hi: 'बर्फ', icon: '❄️', advice: 'ठंड से बचाव करें।' },
+      'mist': { hi: 'कोहरा', icon: '🌫️', advice: 'धुंध है, सावधानी से चलें।' }
+    };
 
-    try {
-      const response = await fetch(
-        `${this.baseUrl}/forecast?q=${city},IN&appid=${this.apiKey}&units=metric&lang=${this.getWeatherLang(language)}&cnt=24`
-      );
+    const condition = current.weather[0].description.toLowerCase();
+    const weatherInfo = weatherConditions[condition] || {
+      hi: current.weather[0].description,
+      icon: '🌤️',
+      advice: 'मौसम की जानकारी देखें।'
+    };
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      return this.formatForecastData(data, language);
-    } catch (error) {
-      console.error('Weather Forecast Error:', error);
-      return this.getMockForecast(language);
-    }
-  }
-
-  formatWeatherData(data, language) {
     return {
-      temperature: Math.round(data.main.temp),
-      feelsLike: Math.round(data.main.feels_like),
-      humidity: data.main.humidity,
-      pressure: data.main.pressure,
-      windSpeed: Math.round(data.wind.speed * 3.6), // Convert m/s to km/h
-      windDirection: data.wind.deg,
-      visibility: data.visibility / 1000, // Convert to km
-      condition: data.weather[0].main,
-      description: data.weather[0].description,
-      icon: data.weather[0].icon,
-      sunrise: new Date(data.sys.sunrise * 1000),
-      sunset: new Date(data.sys.sunset * 1000),
-      city: data.name,
-      country: data.sys.country,
-      localizedCondition: this.getLocalizedCondition(data.weather[0].main, language),
-      localizedDescription: this.getLocalizedDescription(data.weather[0].description, language)
+      location: location,
+      current: {
+        temperature: Math.round(current.main.temp),
+        feelsLike: Math.round(current.main.feels_like),
+        humidity: current.main.humidity,
+        windSpeed: Math.round(current.wind.speed * 3.6), // Convert m/s to km/h
+        pressure: current.main.pressure,
+        visibility: current.visibility ? Math.round(current.visibility / 1000) : null,
+        condition: weatherInfo.hi,
+        conditionEn: current.weather[0].description,
+        icon: weatherInfo.icon,
+        advice: weatherInfo.advice,
+        sunrise: new Date(current.sys.sunrise * 1000).toLocaleTimeString('hi-IN', { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        }),
+        sunset: new Date(current.sys.sunset * 1000).toLocaleTimeString('hi-IN', { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        })
+      },
+      forecast: forecast ? this.formatForecast(forecast.list.slice(0, 5)) : [],
+      alerts: this.generateWeatherAlerts(current),
+      farmingAdvice: this.getFarmingAdvice(current, location)
     };
   }
 
-  formatForecastData(data, language) {
-    const dailyForecasts = {};
-    
-    data.list.forEach(item => {
-      const date = new Date(item.dt * 1000);
-      const dateKey = date.toDateString();
-      
-      if (!dailyForecasts[dateKey]) {
-        dailyForecasts[dateKey] = {
-          date: date,
-          temps: [],
-          conditions: [],
-          humidity: [],
-          windSpeed: []
-        };
-      }
-      
-      dailyForecasts[dateKey].temps.push(item.main.temp);
-      dailyForecasts[dateKey].conditions.push(item.weather[0].main);
-      dailyForecasts[dateKey].humidity.push(item.main.humidity);
-      dailyForecasts[dateKey].windSpeed.push(item.wind.speed * 3.6);
-    });
-
-    return Object.values(dailyForecasts).slice(0, 5).map(day => ({
-      date: day.date,
-      dayName: this.getDayName(day.date, language),
-      maxTemp: Math.round(Math.max(...day.temps)),
-      minTemp: Math.round(Math.min(...day.temps)),
-      avgHumidity: Math.round(day.humidity.reduce((a, b) => a + b) / day.humidity.length),
-      avgWindSpeed: Math.round(day.windSpeed.reduce((a, b) => a + b) / day.windSpeed.length),
-      condition: this.getMostFrequent(day.conditions),
-      localizedCondition: this.getLocalizedCondition(this.getMostFrequent(day.conditions), language)
+  // Format forecast data
+  formatForecast(forecastList) {
+    return forecastList.map(item => ({
+      time: new Date(item.dt * 1000).toLocaleTimeString('hi-IN', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      }),
+      temperature: Math.round(item.main.temp),
+      condition: item.weather[0].description,
+      icon: this.getWeatherIcon(item.weather[0].main),
+      humidity: item.main.humidity,
+      windSpeed: Math.round(item.wind.speed * 3.6)
     }));
   }
 
-  getMostFrequent(arr) {
-    return arr.sort((a, b) =>
-      arr.filter(v => v === a).length - arr.filter(v => v === b).length
-    ).pop();
-  }
-
-  getDayName(date, language) {
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const dayAfter = new Date(today);
-    dayAfter.setDate(dayAfter.getDate() + 2);
-
-    if (date.toDateString() === today.toDateString()) {
-      return language === 'hi' ? 'आज' : language === 'en' ? 'Today' : 'آج';
-    } else if (date.toDateString() === tomorrow.toDateString()) {
-      return language === 'hi' ? 'कल' : language === 'en' ? 'Tomorrow' : 'کل';
-    } else if (date.toDateString() === dayAfter.toDateString()) {
-      return language === 'hi' ? 'परसों' : language === 'en' ? 'Day After' : 'پرسوں';
+  // Generate weather alerts
+  generateWeatherAlerts(current) {
+    const alerts = [];
+    
+    if (current.main.temp > 40) {
+      alerts.push({
+        type: 'heat',
+        message: 'अत्यधिक गर्मी की चेतावनी - पानी पिएं और छाया में रहें',
+        priority: 'high',
+        icon: '🔥'
+      });
+    }
+    
+    if (current.main.temp < 5) {
+      alerts.push({
+        type: 'cold',
+        message: 'ठंड की चेतावनी - गर्म कपड़े पहनें',
+        priority: 'high',
+        icon: '🥶'
+      });
+    }
+    
+    if (current.wind.speed > 10) {
+      alerts.push({
+        type: 'wind',
+        message: 'तेज़ हवा चल रही है - सावधान रहें',
+        priority: 'medium',
+        icon: '💨'
+      });
+    }
+    
+    if (current.main.humidity > 80) {
+      alerts.push({
+        type: 'humidity',
+        message: 'उमस भरा मौसम - पानी पिएं',
+        priority: 'low',
+        icon: '💧'
+      });
     }
 
-    const days = {
-      hi: ['रविवार', 'सोमवार', 'मंगलवार', 'बुधवार', 'गुरुवार', 'शुक्रवार', 'शनिवार'],
-      en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
-      ur: ['اتوار', 'پیر', 'منگل', 'بدھ', 'جمعرات', 'جمعہ', 'ہفتہ']
-    };
-
-    return days[language][date.getDay()] || days.hi[date.getDay()];
+    return alerts;
   }
 
-  getLocalizedCondition(condition, language) {
-    const conditions = {
-      Clear: {
-        hi: 'साफ',
-        en: 'Clear',
-        ur: 'صاف'
+  // Get farming advice based on weather
+  getFarmingAdvice(current, location) {
+    const temp = current.main.temp;
+    const humidity = current.main.humidity;
+    const condition = current.weather[0].main.toLowerCase();
+    
+    let advice = [];
+    
+    if (condition.includes('rain')) {
+      advice.push('🌧️ बारिश हो रही है - फसल की कटाई स्थगित करें');
+      advice.push('💧 पानी भराव से बचाव करें');
+    } else if (temp > 35) {
+      advice.push('☀️ अधिक गर्मी - फसलों को पानी दें');
+      advice.push('🌾 दोपहर में खेत में काम न करें');
+    } else if (temp < 15) {
+      advice.push('❄️ ठंड - फसलों को ढकें');
+      advice.push('🔥 पाला से बचाव करें');
+    } else {
+      advice.push('🌱 खेती के लिए अच्छा मौसम है');
+      advice.push('🚜 खेत के काम कर सकते हैं');
+    }
+    
+    if (humidity > 70) {
+      advice.push('🦠 नमी अधिक - फसल में बीमारी का खतरा');
+    }
+    
+    return advice;
+  }
+
+  // Get weather icon
+  getWeatherIcon(condition) {
+    const icons = {
+      'Clear': '☀️',
+      'Clouds': '☁️',
+      'Rain': '🌧️',
+      'Drizzle': '🌦️',
+      'Thunderstorm': '⛈️',
+      'Snow': '❄️',
+      'Mist': '🌫️',
+      'Fog': '🌫️',
+      'Haze': '🌫️'
+    };
+    return icons[condition] || '🌤️';
+  }
+
+  // Mock weather data for fallback
+  getMockWeatherData(location) {
+    const mockData = {
+      'Muzaffarnagar': {
+        temp: 28, humidity: 65, wind: 12, condition: 'साफ आसमान',
+        advice: 'खेती के लिए अच्छा दिन है।'
       },
-      Clouds: {
-        hi: 'बादल',
-        en: 'Cloudy',
-        ur: 'بادل'
+      'Shamli': {
+        temp: 26, humidity: 70, wind: 8, condition: 'हल्के बादल',
+        advice: 'मौसम सुहावना है।'
       },
-      Rain: {
-        hi: 'बारिश',
-        en: 'Rain',
-        ur: 'بارش'
+      'Baghpat': {
+        temp: 29, humidity: 60, wind: 10, condition: 'साफ आसमान',
+        advice: 'खेत के काम कर सकते हैं।'
       },
-      Drizzle: {
-        hi: 'हल्की बारिश',
-        en: 'Drizzle',
-        ur: 'ہلکی بارش'
-      },
-      Thunderstorm: {
-        hi: 'तूफान',
-        en: 'Thunderstorm',
-        ur: 'طوفان'
-      },
-      Snow: {
-        hi: 'बर्फ',
-        en: 'Snow',
-        ur: 'برف'
-      },
-      Mist: {
-        hi: 'कोहरा',
-        en: 'Mist',
-        ur: 'دھند'
-      },
-      Fog: {
-        hi: 'घना कोहरा',
-        en: 'Fog',
-        ur: 'گھنا دھند'
+      'Meerut': {
+        temp: 31, humidity: 55, wind: 15, condition: 'धूप',
+        advice: 'गर्मी से बचाव करें।'
       }
     };
 
-    return conditions[condition]?.[language] || conditions[condition]?.hi || condition;
-  }
-
-  getLocalizedDescription(description, language) {
-    // This would ideally use the API's localized descriptions
-    // For now, we'll use the condition mapping
-    return this.getLocalizedCondition(description, language);
-  }
-
-  getWeatherLang(language) {
-    const langMap = {
-      hi: 'hi',
-      en: 'en',
-      ur: 'ur'
-    };
-    return langMap[language] || 'hi';
-  }
-
-  getMockWeather(language) {
+    const data = mockData[location] || mockData['Muzaffarnagar'];
+    
     return {
-      temperature: 28,
-      feelsLike: 32,
-      humidity: 65,
-      pressure: 1013,
-      windSpeed: 12,
-      windDirection: 180,
-      visibility: 10,
-      condition: 'Clouds',
-      description: 'scattered clouds',
-      icon: '03d',
-      sunrise: new Date(),
-      sunset: new Date(),
-      city: 'Muzaffarnagar',
-      country: 'IN',
-      localizedCondition: this.getLocalizedCondition('Clouds', language),
-      localizedDescription: this.getLocalizedCondition('Clouds', language)
-    };
-  }
-
-  getMockForecast(language) {
-    const today = new Date();
-    return Array.from({ length: 5 }, (_, i) => {
-      const date = new Date(today);
-      date.setDate(date.getDate() + i);
-      
-      return {
-        date: date,
-        dayName: this.getDayName(date, language),
-        maxTemp: 28 + Math.floor(Math.random() * 6),
-        minTemp: 18 + Math.floor(Math.random() * 4),
-        avgHumidity: 60 + Math.floor(Math.random() * 20),
-        avgWindSpeed: 10 + Math.floor(Math.random() * 10),
-        condition: ['Clear', 'Clouds', 'Rain'][Math.floor(Math.random() * 3)],
-        localizedCondition: this.getLocalizedCondition(['Clear', 'Clouds', 'Rain'][Math.floor(Math.random() * 3)], language)
-      };
-    });
-  }
-
-  getWeatherAdvice(weatherData, language) {
-    const advice = {
-      hi: {
-        Rain: 'बारिश हो सकती है। छाता साथ रखें और फसल की सुरक्षा करें।',
-        Clear: 'मौसम साफ है। खेती के काम के लिए अच्छा दिन है।',
-        Clouds: 'बादल छाए हैं। बारिश की तैयारी रखें।',
-        Thunderstorm: 'तूफान की चेतावनी। घर के अंदर रहें और सुरक्षित रहें।'
+      location: location,
+      current: {
+        temperature: data.temp,
+        feelsLike: data.temp + 2,
+        humidity: data.humidity,
+        windSpeed: data.wind,
+        pressure: 1013,
+        condition: data.condition,
+        conditionEn: 'Clear',
+        icon: '☀️',
+        advice: data.advice,
+        sunrise: '06:30',
+        sunset: '18:45'
       },
-      en: {
-        Rain: 'Rain expected. Carry umbrella and protect crops.',
-        Clear: 'Clear weather. Good day for farming activities.',
-        Clouds: 'Cloudy skies. Be prepared for rain.',
-        Thunderstorm: 'Thunderstorm warning. Stay indoors and be safe.'
-      },
-      ur: {
-        Rain: 'بارش کا امکان۔ چھتری ساتھ رکھیں اور فصل کی حفاظت کریں۔',
-        Clear: 'صاف موسم۔ کھیتی کے کام کے لیے اچھا دن۔',
-        Clouds: 'بادل چھائے ہیں۔ بارش کی تیاری رکھیں۔',
-        Thunderstorm: 'طوفان کی وارننگ۔ گھر کے اندر رہیں اور محفوظ رہیں۔'
-      }
+      forecast: [
+        { time: '12:00', temperature: data.temp + 3, condition: data.condition, icon: '☀️' },
+        { time: '15:00', temperature: data.temp + 5, condition: data.condition, icon: '☀️' },
+        { time: '18:00', temperature: data.temp + 1, condition: data.condition, icon: '🌤️' },
+        { time: '21:00', temperature: data.temp - 2, condition: 'साफ', icon: '🌙' }
+      ],
+      alerts: data.temp > 35 ? [{
+        type: 'heat',
+        message: 'गर्मी की चेतावनी',
+        priority: 'medium',
+        icon: '🔥'
+      }] : [],
+      farmingAdvice: [data.advice, '🌾 फसल की देखभाल करें']
     };
-
-    return advice[language]?.[weatherData.condition] || advice.hi[weatherData.condition] || '';
   }
 }
 

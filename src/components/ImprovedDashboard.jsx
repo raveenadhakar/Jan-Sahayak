@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import {
   TrendingUp, Users, FileText, CheckCircle, AlertTriangle,
-  Calendar, MapPin, Phone, Mail, Clock, Star, Award, Plus
+  Calendar, MapPin, Phone, Mail, Clock, Star, Award, Plus,
+  Settings, Bell, Home, Megaphone
 } from 'lucide-react';
 import { authService } from '../services/authService';
 import { complaintService } from '../services/complaintService';
 import { locationService } from '../services/locationService';
 import UserProfileForm from './UserProfileForm';
+import OfficialsContact from './OfficialsContact';
 
-const Dashboard = ({ userInfo, selectedLanguage, onTabChange }) => {
+const ImprovedDashboard = ({ userInfo, selectedLanguage, onTabChange }) => {
   const [stats, setStats] = useState({
     totalComplaints: 12,
     resolvedComplaints: 8,
@@ -22,10 +24,12 @@ const Dashboard = ({ userInfo, selectedLanguage, onTabChange }) => {
   const [showProfileForm, setShowProfileForm] = useState(false);
   const [locationData, setLocationData] = useState(null);
   const [eligibleSchemes, setEligibleSchemes] = useState([]);
+  const [showOfficialsContact, setShowOfficialsContact] = useState(false);
 
   const translations = {
     hi: {
       dashboard: 'डैशबोर्ड',
+      welcome: 'स्वागत है',
       overview: 'सारांश',
       totalComplaints: 'कुल शिकायतें',
       resolved: 'हल हुई',
@@ -48,10 +52,18 @@ const Dashboard = ({ userInfo, selectedLanguage, onTabChange }) => {
       profileIncomplete: 'प्रोफाइल अधूरी है',
       completeForSchemes: 'सरकारी योजनाओं के लिए अपनी प्रोफाइल पूरी करें',
       verifiedLocation: 'सत्यापित स्थान',
-      eligibleSchemes: 'पात्र योजनाएं'
+      eligibleSchemes: 'पात्र योजनाएं',
+      rating: 'रेटिंग',
+      yourComplaints: 'आपकी शिकायतें',
+      resolvedIssues: 'हल हुए मुद्दे',
+      inProgress: 'प्रगति में',
+      governmentServices: 'सरकारी सेवाएं',
+      communityUpdates: 'समुदायिक अपडेट',
+      importantAnnouncements: 'महत्वपूर्ण घोषणाएं'
     },
     en: {
       dashboard: 'Dashboard',
+      welcome: 'Welcome',
       overview: 'Overview',
       totalComplaints: 'Total Complaints',
       resolved: 'Resolved',
@@ -74,10 +86,18 @@ const Dashboard = ({ userInfo, selectedLanguage, onTabChange }) => {
       profileIncomplete: 'Profile Incomplete',
       completeForSchemes: 'Complete your profile for government schemes',
       verifiedLocation: 'Verified Location',
-      eligibleSchemes: 'Eligible Schemes'
+      eligibleSchemes: 'Eligible Schemes',
+      rating: 'Rating',
+      yourComplaints: 'Your Complaints',
+      resolvedIssues: 'Resolved Issues',
+      inProgress: 'In Progress',
+      governmentServices: 'Government Services',
+      communityUpdates: 'Community Updates',
+      importantAnnouncements: 'Important Announcements'
     },
     ur: {
       dashboard: 'ڈیش بورڈ',
+      welcome: 'خوش آمدید',
       overview: 'خلاصہ',
       totalComplaints: 'کل شکایات',
       resolved: 'حل شدہ',
@@ -100,7 +120,14 @@ const Dashboard = ({ userInfo, selectedLanguage, onTabChange }) => {
       profileIncomplete: 'پروفائل نامکمل',
       completeForSchemes: 'سرکاری اسکیموں کے لیے اپنا پروفائل مکمل کریں',
       verifiedLocation: 'تصدیق شدہ مقام',
-      eligibleSchemes: 'اہل اسکیمیں'
+      eligibleSchemes: 'اہل اسکیمیں',
+      rating: 'درجہ بندی',
+      yourComplaints: 'آپ کی شکایات',
+      resolvedIssues: 'حل شدہ مسائل',
+      inProgress: 'جاری',
+      governmentServices: 'سرکاری خدمات',
+      communityUpdates: 'کمیونٹی اپڈیٹس',
+      importantAnnouncements: 'اہم اعلانات'
     }
   };
 
@@ -140,67 +167,80 @@ const Dashboard = ({ userInfo, selectedLanguage, onTabChange }) => {
   // Use real data if logged in, otherwise use demo data
   const displayStats = isLoggedIn && realUserStats ? realUserStats : stats;
 
-  const StatCard = ({ icon, title, value, color, trend }) => (
-    <div className={`bg-gradient-to-br ${color} rounded-2xl p-6 text-white shadow-lg hover:shadow-xl transition-all transform hover:scale-105`}>
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-white/80 text-sm font-medium">{title}</p>
-          <p className="text-3xl font-bold mt-1">{value}</p>
-          {trend && (
-            <div className="flex items-center mt-2">
-              <TrendingUp className="w-4 h-4 mr-1" />
-              <span className="text-sm">{trend}</span>
-            </div>
-          )}
-        </div>
-        <div className="bg-white/20 p-3 rounded-full">
+  const StatCard = ({ icon, title, value, subtitle, color, onClick }) => (
+    <div 
+      className={`card-clean card-interactive p-6 ${onClick ? 'cursor-pointer' : ''}`}
+      onClick={onClick}
+    >
+      <div className="flex items-center justify-between mb-4">
+        <div className={`p-3 rounded-xl ${color}`}>
           {icon}
         </div>
+        <div className="text-right">
+          <p className="text-display text-primary">{value}</p>
+          <p className="text-caption text-muted">{subtitle}</p>
+        </div>
       </div>
+      <h3 className="text-body font-semibold text-secondary">{title}</h3>
     </div>
   );
 
-  const QuickActionCard = ({ icon, title, description, onClick, color }) => (
+  const ActionCard = ({ icon, title, description, onClick, color, prominent = false }) => (
     <button
       onClick={onClick}
-      className={`bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all transform hover:scale-105 text-left w-full border-l-4 ${color}`}
+      className={`card-clean card-interactive text-left w-full p-6 ${
+        prominent ? 'bg-gradient-primary text-white' : ''
+      }`}
     >
       <div className="flex items-start space-x-4">
-        <div className={`p-3 rounded-full bg-gradient-to-br ${color.replace('border-l-', 'from-').replace('-500', '-400')} to-${color.split('-')[1]}-600`}>
-          {icon}
+        <div className={`p-3 rounded-xl ${prominent ? 'bg-white/20' : color}`}>
+          {React.cloneElement(icon, { 
+            className: `icon-lg ${prominent ? 'text-white' : ''}` 
+          })}
         </div>
-        <div>
-          <h3 className="font-bold text-gray-800 mb-1">{title}</h3>
-          <p className="text-gray-600 text-sm">{description}</p>
+        <div className="flex-1">
+          <h3 className={`text-subheading font-semibold mb-2 ${
+            prominent ? 'text-white' : 'text-primary'
+          }`}>
+            {title}
+          </h3>
+          <p className={`text-body ${
+            prominent ? 'text-white/90' : 'text-secondary'
+          }`}>
+            {description}
+          </p>
         </div>
       </div>
     </button>
   );
 
   return (
-    <div className="space-y-6">
-      {/* Welcome Section */}
-      <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-700 rounded-3xl p-6 text-white">
-        <div className="flex items-center space-x-4">
-          <div className="bg-white/20 p-4 rounded-full">
-            <Users className="w-8 h-8" />
-          </div>
+    <div className="space-clean-lg">
+      {/* Welcome Header */}
+      <div className="card-clean p-8 bg-gradient-primary text-white">
+        <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold">{t.dashboard}</h2>
-            <p className="text-blue-100">
-              {selectedLanguage === 'hi' && `स्वागत है, ${userInfo.name}`}
-              {selectedLanguage === 'en' && `Welcome, ${userInfo.name}`}
-              {selectedLanguage === 'ur' && `خوش آمدید، ${userInfo.name}`}
+            <h1 className="text-display mb-2">{t.dashboard}</h1>
+            <p className="text-body-lg mb-4">
+              {t.welcome}, {isLoggedIn ? userInfo.name : 'उपयोगकर्ता'}
             </p>
-            <div className="flex items-center space-x-4 mt-2 text-sm text-blue-200">
-              <div className="flex items-center space-x-1">
-                <MapPin className="w-4 h-4" />
-                <span>{userInfo.village}, {userInfo.district}</span>
+            {isLoggedIn && userInfo.village && (
+              <div className="flex items-center space-x-2 text-white/90">
+                <MapPin className="icon-sm" />
+                <span className="text-body">
+                  {userInfo.village}, {userInfo.district}, {userInfo.state}
+                </span>
+                {locationData && (
+                  <span className="bg-white/20 px-2 py-1 rounded-full text-caption font-semibold">
+                    ✓ {t.verifiedLocation}
+                  </span>
+                )}
               </div>
-              <div className="flex items-center space-x-1">
-                <Clock className="w-4 h-4" />
-                <span>{t.lastLogin}: {displayStats.lastLogin}</span>
-              </div>
+            )}
+          </div>
+          <div className="text-right">
+            <div className="bg-white/20 p-4 rounded-xl">
+              <Home className="icon-2xl text-white mx-auto" />
             </div>
           </div>
         </div>
@@ -208,12 +248,12 @@ const Dashboard = ({ userInfo, selectedLanguage, onTabChange }) => {
 
       {/* Demo Data Notice */}
       {!isLoggedIn && (
-        <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-l-4 border-amber-400 rounded-2xl p-4">
+        <div className="card-clean border-l-4 border-yellow-400 bg-yellow-50">
           <div className="flex items-center space-x-3">
-            <AlertTriangle className="w-6 h-6 text-amber-600" />
+            <AlertTriangle className="icon-lg text-yellow-600" />
             <div>
-              <p className="text-amber-800 font-semibold">{t.demoDataNotice}</p>
-              <p className="text-amber-700 text-sm">
+              <p className="text-body font-semibold text-yellow-800">{t.demoDataNotice}</p>
+              <p className="text-caption text-yellow-700">
                 {selectedLanguage === 'hi' && 'अपना वास्तविक डेटा देखने के लिए लॉगिन करें या साइन अप करें।'}
                 {selectedLanguage === 'en' && 'Login or sign up to see your real data.'}
                 {selectedLanguage === 'ur' && 'اپنا حقیقی ڈیٹا دیکھنے کے لیے لاگ ان یا سائن اپ کریں۔'}
@@ -225,18 +265,18 @@ const Dashboard = ({ userInfo, selectedLanguage, onTabChange }) => {
 
       {/* Profile Completion Notice */}
       {isLoggedIn && (!userInfo.profileComplete || !locationData) && (
-        <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-l-4 border-blue-400 rounded-2xl p-4">
+        <div className="card-clean border-l-4 border-blue-400 bg-blue-50">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <AlertTriangle className="w-6 h-6 text-blue-600" />
+              <AlertTriangle className="icon-lg text-blue-600" />
               <div>
-                <p className="text-blue-800 font-semibold">{t.profileIncomplete}</p>
-                <p className="text-blue-700 text-sm">{t.completeForSchemes}</p>
+                <p className="text-body font-semibold text-blue-800">{t.profileIncomplete}</p>
+                <p className="text-caption text-blue-700">{t.completeForSchemes}</p>
               </div>
             </div>
             <button
               onClick={() => setShowProfileForm(true)}
-              className="bg-blue-500 text-white px-4 py-2 rounded-xl hover:bg-blue-600 transition-all font-semibold"
+              className="btn-primary"
             >
               {t.completeProfile}
             </button>
@@ -244,17 +284,17 @@ const Dashboard = ({ userInfo, selectedLanguage, onTabChange }) => {
         </div>
       )}
 
-      {/* Complaint Center - Prominent Section */}
-      <div className="bg-gradient-to-r from-red-500 via-pink-500 to-orange-500 rounded-3xl p-6 text-white shadow-xl">
+      {/* Prominent Complaint Center */}
+      <div className="card-clean bg-gradient-danger text-white p-8">
         <div className="flex items-center justify-between">
           <div className="flex-1">
-            <div className="flex items-center space-x-3 mb-3">
-              <div className="bg-white/20 p-3 rounded-full">
-                <FileText className="w-8 h-8" />
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="bg-white/20 p-3 rounded-xl">
+                <Megaphone className="icon-xl text-white" />
               </div>
               <div>
-                <h3 className="text-2xl font-bold">{t.complaintCenter}</h3>
-                <p className="text-red-100">{t.complaintDescription}</p>
+                <h2 className="text-heading">{t.complaintCenter}</h2>
+                <p className="text-body-lg text-white/90">{t.complaintDescription}</p>
               </div>
             </div>
           </div>
@@ -262,17 +302,17 @@ const Dashboard = ({ userInfo, selectedLanguage, onTabChange }) => {
             {isLoggedIn ? (
               <button
                 onClick={() => onTabChange && onTabChange('complaints')}
-                className="bg-white text-red-600 px-8 py-4 rounded-2xl hover:bg-red-50 transition-all font-bold text-lg transform hover:scale-105 flex items-center space-x-2 shadow-lg"
+                className="bg-white text-red-600 px-8 py-4 rounded-xl hover:bg-red-50 transition-all font-bold text-body-lg flex items-center space-x-2 shadow-clean"
               >
-                <Plus className="w-6 h-6" />
+                <Plus className="icon-lg" />
                 <span>{t.fileComplaintNow}</span>
               </button>
             ) : (
               <button
                 onClick={() => onTabChange && onTabChange('home')}
-                className="bg-white text-red-600 px-8 py-4 rounded-2xl hover:bg-red-50 transition-all font-bold text-lg transform hover:scale-105 flex items-center space-x-2 shadow-lg"
+                className="bg-white text-red-600 px-8 py-4 rounded-xl hover:bg-red-50 transition-all font-bold text-body-lg flex items-center space-x-2 shadow-clean"
               >
-                <Users className="w-6 h-6" />
+                <Users className="icon-lg" />
                 <span>{t.loginToFile}</span>
               </button>
             )}
@@ -281,76 +321,77 @@ const Dashboard = ({ userInfo, selectedLanguage, onTabChange }) => {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
-          icon={<FileText className="w-6 h-6" />}
+          icon={<FileText className="icon-xl text-blue-600" />}
           title={t.totalComplaints}
           value={displayStats.totalComplaints}
-          color="from-blue-500 to-blue-600"
-          trend={isLoggedIn ? "Your complaints" : "+2 this month"}
+          subtitle={isLoggedIn ? t.yourComplaints : "Demo data"}
+          color="bg-blue-100"
+          onClick={() => onTabChange && onTabChange('complaints')}
         />
         <StatCard
-          icon={<CheckCircle className="w-6 h-6" />}
+          icon={<CheckCircle className="icon-xl text-green-600" />}
           title={t.resolved}
           value={displayStats.resolvedComplaints}
-          color="from-green-500 to-green-600"
-          trend={isLoggedIn ? "Resolved issues" : "67% success rate"}
+          subtitle={isLoggedIn ? t.resolvedIssues : "Success rate"}
+          color="bg-green-100"
         />
         <StatCard
-          icon={<AlertTriangle className="w-6 h-6" />}
+          icon={<Clock className="icon-xl text-orange-600" />}
           title={t.pending}
           value={displayStats.pendingComplaints}
-          color="from-orange-500 to-orange-600"
-          trend={isLoggedIn ? "In progress" : ""}
+          subtitle={isLoggedIn ? t.inProgress : ""}
+          color="bg-orange-100"
         />
         <StatCard
-          icon={<Award className="w-6 h-6" />}
+          icon={<Award className="icon-xl text-purple-600" />}
           title={t.activeSchemes}
           value={displayStats.activeSchemes}
-          color="from-purple-500 to-purple-600"
+          subtitle={t.eligibleSchemes}
+          color="bg-purple-100"
+          onClick={() => onTabChange && onTabChange('rights')}
         />
       </div>
 
       {/* Village Information */}
-      <div className="bg-white rounded-2xl p-6 shadow-lg">
-        <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center space-x-2">
-          <MapPin className="w-6 h-6 text-blue-500" />
+      <div className="card-clean">
+        <h3 className="text-heading mb-6 flex items-center space-x-2">
+          <MapPin className="icon-xl text-blue-600" />
           <span>{t.villageStats}</span>
           {locationData && (
-            <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-semibold">
+            <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-caption font-semibold">
               {t.verifiedLocation}
             </span>
           )}
         </h3>
+        
         <div className="grid grid-cols-2 gap-6">
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4">
-            <div className="flex items-center space-x-3">
-              <Users className="w-8 h-8 text-blue-500" />
+          <div className="bg-blue-50 rounded-xl p-6">
+            <div className="flex items-center space-x-4">
+              <Users className="icon-2xl text-blue-600" />
               <div>
-                <p className="text-blue-600 font-semibold">{t.population}</p>
-                <p className="text-2xl font-bold text-blue-800">{displayStats.villagePopulation.toLocaleString()}</p>
+                <p className="text-body font-semibold text-blue-600">{t.population}</p>
+                <p className="text-display text-blue-800">{displayStats.villagePopulation.toLocaleString()}</p>
                 {locationData && (
-                  <p className="text-xs text-blue-500 mt-1">
+                  <p className="text-caption text-blue-500 mt-1">
                     {locationData.district} {selectedLanguage === 'hi' ? 'जिला' : selectedLanguage === 'en' ? 'District' : 'ضلع'}
                   </p>
                 )}
               </div>
             </div>
           </div>
-          <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4">
-            <div className="flex items-center space-x-3">
-              <Star className="w-8 h-8 text-green-500" />
+          
+          <div className="bg-green-50 rounded-xl p-6">
+            <div className="flex items-center space-x-4">
+              <Star className="icon-2xl text-green-600" />
               <div>
-                <p className="text-green-600 font-semibold">
-                  {selectedLanguage === 'hi' && 'रेटिंग'}
-                  {selectedLanguage === 'en' && 'Rating'}
-                  {selectedLanguage === 'ur' && 'درجہ بندی'}
-                </p>
-                <p className="text-2xl font-bold text-green-800">
+                <p className="text-body font-semibold text-green-600">{t.rating}</p>
+                <p className="text-display text-green-800">
                   {locationData ? `${locationData.rating}/5` : '4.2/5'}
                 </p>
                 {locationData && (
-                  <p className="text-xs text-green-500 mt-1">
+                  <p className="text-caption text-green-500 mt-1">
                     {selectedLanguage === 'hi' && 'सत्यापित डेटा'}
                     {selectedLanguage === 'en' && 'Verified Data'}
                     {selectedLanguage === 'ur' && 'تصدیق شدہ ڈیٹا'}
@@ -363,23 +404,23 @@ const Dashboard = ({ userInfo, selectedLanguage, onTabChange }) => {
         
         {/* Eligible Schemes */}
         {eligibleSchemes.length > 0 && (
-          <div className="mt-6 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4">
-            <h4 className="font-semibold text-purple-800 mb-3 flex items-center space-x-2">
-              <Award className="w-5 h-5" />
+          <div className="mt-6 bg-purple-50 rounded-xl p-6">
+            <h4 className="text-subheading font-semibold text-purple-800 mb-4 flex items-center space-x-2">
+              <Award className="icon-lg" />
               <span>{t.eligibleSchemes} ({eligibleSchemes.length})</span>
             </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {eligibleSchemes.slice(0, 4).map((scheme, index) => (
-                <div key={index} className="bg-white rounded-lg p-3 border border-purple-200">
-                  <p className="font-semibold text-purple-800 text-sm">{scheme.name}</p>
-                  <p className="text-purple-600 text-xs">{scheme.benefits}</p>
+                <div key={index} className="bg-white rounded-lg p-4 border border-purple-200">
+                  <p className="text-body font-semibold text-purple-800">{scheme.name}</p>
+                  <p className="text-caption text-purple-600">{scheme.benefits}</p>
                 </div>
               ))}
             </div>
             {eligibleSchemes.length > 4 && (
               <button
                 onClick={() => onTabChange && onTabChange('rights')}
-                className="mt-3 text-purple-600 hover:text-purple-800 text-sm font-semibold"
+                className="mt-4 text-purple-600 hover:text-purple-800 text-body font-semibold"
               >
                 +{eligibleSchemes.length - 4} {selectedLanguage === 'hi' ? 'और देखें' : selectedLanguage === 'en' ? 'more' : 'مزید'}
               </button>
@@ -389,44 +430,45 @@ const Dashboard = ({ userInfo, selectedLanguage, onTabChange }) => {
       </div>
 
       {/* Quick Actions */}
-      <div className="bg-white rounded-2xl p-6 shadow-lg">
-        <h3 className="text-xl font-bold text-gray-800 mb-6">{t.quickActions}</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <QuickActionCard
-            icon={<FileText className="w-6 h-6 text-white" />}
+      <div className="card-clean">
+        <h3 className="text-heading mb-6">{t.quickActions}</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <ActionCard
+            icon={<FileText />}
             title={t.fileNewComplaint}
             description={selectedLanguage === 'hi' ? 'आवाज़ या टेक्स्ट में शिकायत दर्ज करें' :
               selectedLanguage === 'en' ? 'File complaint via voice or text' :
                 'آواز یا ٹیکسٹ میں شکایت درج کریں'}
-            color="border-l-red-500"
+            color="bg-red-100"
             onClick={() => onTabChange && onTabChange('complaints')}
+            prominent={true}
           />
-          <QuickActionCard
-            icon={<Award className="w-6 h-6 text-white" />}
+          <ActionCard
+            icon={<Award />}
             title={t.checkSchemeStatus}
             description={selectedLanguage === 'hi' ? 'सरकारी योजनाओं की स्थिति देखें' :
               selectedLanguage === 'en' ? 'Check government scheme status' :
                 'سرکاری اسکیموں کی صورتحال دیکھیں'}
-            color="border-l-blue-500"
-            onClick={() => onTabChange && onTabChange('schemes')}
+            color="bg-blue-100"
+            onClick={() => onTabChange && onTabChange('rights')}
           />
-          <QuickActionCard
-            icon={<Calendar className="w-6 h-6 text-white" />}
+          <ActionCard
+            icon={<Calendar />}
             title={t.viewNotices}
             description={selectedLanguage === 'hi' ? 'पंचायत की सूचनाएं और घोषणाएं' :
               selectedLanguage === 'en' ? 'Panchayat notices and announcements' :
-                'पنچایت کی اطلاعات اور اعلانات'}
-            color="border-l-green-500"
-            onClick={() => onTabChange && onTabChange('village-voice')}
+                'پنچایت کی اطلاعات اور اعلانات'}
+            color="bg-green-100"
+            onClick={() => onTabChange && onTabChange('gramvaani')}
           />
-          <QuickActionCard
-            icon={<Phone className="w-6 h-6 text-white" />}
+          <ActionCard
+            icon={<span className="text-3xl">📞</span>}
             title={t.contactOfficials}
-            description={selectedLanguage === 'hi' ? 'सरकारी अधिकारियों से संपर्क करें' :
-              selectedLanguage === 'en' ? 'Contact government officials' :
-                'سرکاری حکام سے رابطہ کریں'}
-            color="border-l-purple-500"
-            onClick={() => onTabChange && onTabChange('samuday')}
+            description={selectedLanguage === 'hi' ? 'सरपंच, तहसीलदार, कलेक्टर से संपर्क करें' :
+              selectedLanguage === 'en' ? 'Contact Sarpanch, Tehsildar, Collector' :
+                'سرپنچ، تحصیلدار، کلکٹر سے رابطہ کریں'}
+            color="bg-purple-100"
+            onClick={() => setShowOfficialsContact(true)}
           />
         </div>
       </div>
@@ -438,13 +480,20 @@ const Dashboard = ({ userInfo, selectedLanguage, onTabChange }) => {
         userInfo={userInfo}
         selectedLanguage={selectedLanguage}
         onSuccess={(updatedUser) => {
-          // Refresh the page data with updated user info
           setUserInfo(updatedUser);
-          window.location.reload(); // Simple refresh to reload all data
+          window.location.reload();
         }}
+      />
+
+      {/* Officials Contact Modal */}
+      <OfficialsContact
+        isOpen={showOfficialsContact}
+        onClose={() => setShowOfficialsContact(false)}
+        userInfo={userInfo}
+        selectedLanguage={selectedLanguage}
       />
     </div>
   );
 };
 
-export default Dashboard;
+export default ImprovedDashboard;

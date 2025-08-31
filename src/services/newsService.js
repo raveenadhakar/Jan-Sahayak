@@ -1,244 +1,292 @@
+// Enhanced News Service with real links and descriptions
 class NewsService {
   constructor() {
-    this.tavilyApiKey = import.meta.env.VITE_TAVILY_API_KEY || '';
-    this.baseUrl = 'https://api.tavily.com/search';
-  } // <-- Missing closing brace was here
+    this.apiKey = import.meta.env.VITE_NEWS_API_KEY;
+    this.isEnabled = !!this.apiKey;
+  }
 
-  async getLatestNews(query = 'भारत समाचार', language = 'hi', maxResults = 5) {
-    if (!this.tavilyApiKey) {
-      console.warn('Tavily API key not configured, using mock data');
-      return this.getMockNews(language);
-    }
-
+  // Get location-based news
+  async getLocationNews(state, district, language = 'hi') {
     try {
-      const searchQuery = this.getLocalizedQuery(query, language);
-
-      const response = await fetch(this.baseUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          api_key: this.tavilyApiKey,
-          query: searchQuery,
-          search_depth: 'basic',
-          include_answer: true,
-          include_images: false,
-          include_raw_content: false,
-          max_results: maxResults,
-          include_domains: this.getReliableDomains(language),
-          exclude_domains: ['facebook.com', 'twitter.com', 'instagram.com']
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (this.isEnabled) {
+        return await this.fetchRealNews(state, district, language);
+      } else {
+        return this.getMockNews(state, district, language);
       }
-
-      const data = await response.json();
-      return this.formatNewsResults(data.results || [], language);
     } catch (error) {
-      console.error('Tavily API Error:', error);
-      return this.getMockNews(language);
+      console.error('News fetch error:', error);
+      return this.getMockNews(state, district, language);
     }
   }
 
-  async getGovernmentNews(language = 'hi') {
-    const queries = {
-      hi: 'सरकारी योजना नई घोषणा भारत',
-      en: 'government scheme announcement India',
-      ur: 'حکومتی اسکیم اعلان بھارت'
-    };
-
-    return await this.getLatestNews(queries[language] || queries.hi, language, 3);
+  // Fetch real news from API
+  async fetchRealNews(state, district, language) {
+    const query = `${district} ${state} government schemes agriculture rural development`;
+    const langCode = language === 'hi' ? 'hi' : 'en';
+    
+    const response = await fetch(
+      `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&language=${langCode}&sortBy=publishedAt&pageSize=10&apiKey=${this.apiKey}`
+    );
+    
+    if (!response.ok) {
+      throw new Error('News API error');
+    }
+    
+    const data = await response.json();
+    return this.formatNewsData(data.articles, language);
   }
 
-  async getWeatherNews(location = 'उत्तर प्रदेश', language = 'hi') {
-    const queries = {
-      hi: `मौसम ${location} बारिश तापमान`,
-      en: `weather ${location} rain temperature`,
-      ur: `موسم ${location} بارش درجہ حرارت`
-    };
-
-    return await this.getLatestNews(queries[language] || queries.hi, language, 2);
-  }
-
-  async getAgricultureNews(language = 'hi') {
-    const queries = {
-      hi: 'कृषि मंडी भाव फसल किसान',
-      en: 'agriculture market price crop farmer',
-      ur: 'زراعت منڈی بھاؤ فصل کسان'
-    };
-
-    return await this.getLatestNews(queries[language] || queries.hi, language, 3);
-  }
-
-  getLocalizedQuery(query, language) {
-    const locationSuffix = {
-      hi: ' भारत उत्तर प्रदेश',
-      en: ' India Uttar Pradesh',
-      ur: ' بھارت اتر پردیش'
-    };
-
-    return query + (locationSuffix[language] || locationSuffix.hi);
-  }
-
-  getReliableDomains(language) {
-    const domains = {
-      hi: [
-        'aajtak.in',
-        'ndtv.com',
-        'zeenews.india.com',
-        'jagran.com',
-        'bhaskar.com',
-        'amarujala.com',
-        'pib.gov.in'
-      ],
-      en: [
-        'timesofindia.indiatimes.com',
-        'hindustantimes.com',
-        'indianexpress.com',
-        'ndtv.com',
-        'news18.com',
-        'pib.gov.in'
-      ],
-      ur: [
-        'urdu.ndtv.com',
-        'bbc.com/urdu',
-        'dw.com/ur',
-        'pib.gov.in'
-      ]
-    };
-
-    return domains[language] || domains.hi;
-  }
-
-  formatNewsResults(results, language) {
-    return results.map((item, index) => ({
-      id: index + 1,
-      title: item.title || 'समाचार',
-      description: item.content || item.snippet || '',
-      url: item.url || '',
-      publishedAt: new Date().toISOString(),
-      source: this.extractDomain(item.url || ''),
-      category: this.categorizeNews(item.title + ' ' + item.content, language),
-      priority: this.getPriority(item.title + ' ' + item.content, language)
+  // Format news data
+  formatNewsData(articles, language) {
+    return articles.slice(0, 5).map((article, index) => ({
+      id: `news_${Date.now()}_${index}`,
+      title: article.title,
+      description: article.description || article.content?.substring(0, 200) + '...',
+      summary: this.generateSummary(article.description || article.content, language),
+      source: article.source.name,
+      publishedAt: new Date(article.publishedAt).toLocaleDateString('hi-IN'),
+      url: article.url,
+      urlToImage: article.urlToImage,
+      category: this.categorizeNews(article.title + ' ' + article.description),
+      priority: this.getPriority(article.title + ' ' + article.description),
+      location: article.source.name.includes('local') ? 'local' : 'national',
+      language: language,
+      readingTime: Math.ceil((article.content?.length || 500) / 200) // Approx reading time
     }));
   }
 
-  extractDomain(url) {
-    try {
-      return new URL(url).hostname.replace('www.', '');
-    } catch {
-      return 'समाचार स्रोत';
-    }
+  // Generate summary for news
+  generateSummary(content, language) {
+    if (!content) return '';
+    
+    const sentences = content.split('.').filter(s => s.trim().length > 10);
+    const summary = sentences.slice(0, 2).join('. ') + '.';
+    
+    return summary.length > 150 ? summary.substring(0, 150) + '...' : summary;
   }
 
-  categorizeNews(content, language) {
-    const keywords = {
-      government: ['सरकार', 'योजना', 'government', 'scheme', 'حکومت', 'اسکیم'],
-      weather: ['मौसम', 'बारिश', 'weather', 'rain', 'موسم', 'بارش'],
-      agriculture: ['कृषि', 'किसान', 'फसल', 'agriculture', 'farmer', 'crop', 'زراعت', 'کسان'],
-      health: ['स्वास्थ्य', 'अस्पताल', 'health', 'hospital', 'صحت', 'ہسپتال'],
-      education: ['शिक्षा', 'स्कूल', 'education', 'school', 'تعلیم', 'اسکول']
+  // Categorize news
+  categorizeNews(text) {
+    const categories = {
+      'government': ['government', 'सरकार', 'योजना', 'scheme', 'policy', 'नीति'],
+      'agriculture': ['agriculture', 'कृषि', 'farmer', 'किसान', 'crop', 'फसल'],
+      'weather': ['weather', 'मौसम', 'rain', 'बारिश', 'temperature', 'तापमान'],
+      'health': ['health', 'स्वास्थ्य', 'hospital', 'अस्पताल', 'medical', 'चिकित्सा'],
+      'education': ['education', 'शिक्षा', 'school', 'स्कूल', 'student', 'छात्र'],
+      'infrastructure': ['infrastructure', 'बुनियादी', 'road', 'सड़क', 'water', 'पानी']
     };
-
-    const lowerContent = content.toLowerCase();
-
-    for (const [category, words] of Object.entries(keywords)) {
-      if (words.some(word => lowerContent.includes(word.toLowerCase()))) {
+    
+    const lowerText = text.toLowerCase();
+    
+    for (const [category, keywords] of Object.entries(categories)) {
+      if (keywords.some(keyword => lowerText.includes(keyword))) {
         return category;
       }
     }
-
+    
     return 'general';
   }
 
-  getPriority(content, language) {
-    const highPriorityKeywords = [
-      'आपातकाल', 'चेतावनी', 'तत्काल', 'emergency', 'warning', 'urgent', 'فوری', 'انتباہ'
-    ];
-
-    const lowerContent = content.toLowerCase();
-
-    if (highPriorityKeywords.some(word => lowerContent.includes(word.toLowerCase()))) {
+  // Get priority based on content
+  getPriority(text) {
+    const highPriorityKeywords = ['emergency', 'alert', 'warning', 'चेतावनी', 'आपातकाल', 'urgent'];
+    const mediumPriorityKeywords = ['scheme', 'योजना', 'benefit', 'लाभ', 'subsidy', 'सब्सिडी'];
+    
+    const lowerText = text.toLowerCase();
+    
+    if (highPriorityKeywords.some(keyword => lowerText.includes(keyword))) {
       return 'high';
+    } else if (mediumPriorityKeywords.some(keyword => lowerText.includes(keyword))) {
+      return 'medium';
     }
-
-    return 'medium';
+    
+    return 'low';
   }
 
-  getMockNews(language) {
-    const mockData = {
-      hi: [
+  // Mock news data with proper structure
+  getMockNews(state, district, language) {
+    const newsData = {
+      'hi': [
         {
-          id: 1,
-          title: 'PM-KISAN योजना में नया अपडेट',
-          description: 'प्रधानमंत्री किसान सम्मान निधि योजना के तहत अब किसानों को अधिक लाभ मिलेगा। नई घोषणा के अनुसार राशि बढ़ाई जा सकती है।',
-          url: '#',
-          publishedAt: new Date().toISOString(),
-          source: 'सरकारी समाचार',
+          id: 'news_1',
+          title: 'PM-KISAN योजना में नए लाभार्थियों का पंजीकरण शुरू',
+          description: 'प्रधानमंत्री किसान सम्मान निधि योजना के तहत नए किसानों का पंजीकरण शुरू हो गया है। इस योजना के अंतर्गत पात्र किसानों को प्रति वर्ष 6000 रुपये की आर्थिक सहायता तीन किस्तों में दी जाती है।',
+          summary: 'PM-KISAN योजना में नए किसानों का पंजीकरण शुरू। प्रति वर्ष 6000 रुपये की सहायता।',
+          source: 'कृषि मंत्रालय',
+          publishedAt: new Date().toLocaleDateString('hi-IN'),
+          url: 'https://pmkisan.gov.in/',
+          urlToImage: 'https://via.placeholder.com/400x200?text=PM-KISAN',
           category: 'government',
-          priority: 'high'
+          priority: 'high',
+          location: 'national',
+          language: 'hi',
+          readingTime: 2
         },
         {
-          id: 2,
-          title: 'मौसम विभाग की चेतावनी',
-          description: 'अगले 48 घंटों में उत्तर प्रदेश के कई जिलों में भारी बारिश की संभावना। किसानों को सलाह दी गई है कि वे अपनी फसल की सुरक्षा करें।',
-          url: '#',
-          publishedAt: new Date().toISOString(),
+          id: 'news_2',
+          title: `${district} में मौसम विभाग की चेतावनी - अगले 48 घंटों में भारी बारिश`,
+          description: `मौसम विभाग ने ${district} और आसपास के क्षेत्रों में अगले 48 घंटों में भारी बारिश की संभावना जताई है। किसानों को सलाह दी गई है कि वे अपनी फसलों की सुरक्षा के लिए आवश्यक उपाय करें। खासकर धान और गन्ने की फसल को नुकसान से बचाने के लिए जल निकासी की व्यवस्था करें।`,
+          summary: `${district} में भारी बारिश की चेतावनी। किसानों को फसल सुरक्षा की सलाह।`,
           source: 'मौसम विभाग',
+          publishedAt: new Date().toLocaleDateString('hi-IN'),
+          url: 'https://mausam.imd.gov.in/',
+          urlToImage: 'https://via.placeholder.com/400x200?text=Weather+Alert',
           category: 'weather',
-          priority: 'high'
+          priority: 'high',
+          location: 'local',
+          language: 'hi',
+          readingTime: 3
         },
         {
-          id: 3,
-          title: 'गेहूं की कीमतों में वृद्धि',
-          description: 'स्थानीय मंडियों में गेहूं के भाव में 50 रुपये प्रति क्विंटल की बढ़ोतरी दर्ज की गई है। यह किसानों के लिए अच्छी खबर है।',
-          url: '#',
-          publishedAt: new Date().toISOString(),
-          source: 'कृषि समाचार',
-          category: 'agriculture',
-          priority: 'medium'
+          id: 'news_3',
+          title: 'आयुष्मान भारत योजना में नई सुविधाएं जोड़ी गईं',
+          description: 'आयुष्मान भारत प्रधानमंत्री जन आरोग्य योजना में अब मानसिक स्वास्थ्य सेवाएं भी शामिल की गई हैं। इसके अलावा टेली-मेडिसिन सुविधा भी उपलब्ध कराई गई है जिससे ग्रामीण क्षेत्रों के लोग घर बैठे डॉक्टर से सलाह ले सकते हैं।',
+          summary: 'आयुष्मान भारत में मानसिक स्वास्थ्य और टेली-मेडिसिन सुविधा जोड़ी गई।',
+          source: 'स्वास्थ्य मंत्रालय',
+          publishedAt: new Date(Date.now() - 86400000).toLocaleDateString('hi-IN'),
+          url: 'https://pmjay.gov.in/',
+          urlToImage: 'https://via.placeholder.com/400x200?text=Ayushman+Bharat',
+          category: 'health',
+          priority: 'medium',
+          location: 'national',
+          language: 'hi',
+          readingTime: 2
+        },
+        {
+          id: 'news_4',
+          title: `${state} में डिजिटल इंडिया मिशन के तहत नई सुविधाएं`,
+          description: `${state} सरकार ने डिजिटल इंडिया मिशन के तहत ग्रामीण क्षेत्रों में इंटरनेट कनेक्टिविटी बढ़ाने के लिए नई योजना शुरू की है। इसके तहत हर गांव में कम से कम एक डिजिटल सेवा केंद्र स्थापित किया जाएगा।`,
+          summary: `${state} में डिजिटल इंडिया के तहत हर गांव में डिजिटल सेवा केंद्र।`,
+          source: 'डिजिटल इंडिया',
+          publishedAt: new Date(Date.now() - 172800000).toLocaleDateString('hi-IN'),
+          url: 'https://digitalindia.gov.in/',
+          urlToImage: 'https://via.placeholder.com/400x200?text=Digital+India',
+          category: 'infrastructure',
+          priority: 'medium',
+          location: 'state',
+          language: 'hi',
+          readingTime: 2
+        },
+        {
+          id: 'news_5',
+          title: 'MGNREGA के तहत मजदूरी दरें बढ़ाई गईं',
+          description: 'महात्मा गांधी राष्ट्रीय ग्रामीण रोजगार गारंटी अधिनियम (MGNREGA) के तहत मजदूरी दरें बढ़ाई गई हैं। अब प्रतिदिन 220 रुपये मजदूरी मिलेगी। यह वृद्धि महंगाई दर को देखते हुए की गई है।',
+          summary: 'MGNREGA में मजदूरी दर बढ़कर 220 रुपये प्रतिदिन हुई।',
+          source: 'ग्रामीण विकास मंत्रालय',
+          publishedAt: new Date(Date.now() - 259200000).toLocaleDateString('hi-IN'),
+          url: 'https://nrega.nic.in/',
+          urlToImage: 'https://via.placeholder.com/400x200?text=MGNREGA',
+          category: 'government',
+          priority: 'medium',
+          location: 'national',
+          language: 'hi',
+          readingTime: 1
         }
       ],
-      en: [
+      'en': [
         {
-          id: 1,
-          title: 'PM-KISAN Scheme Update',
-          description: 'New benefits announced under PM-KISAN scheme for farmers. The government is considering increasing the amount.',
-          url: '#',
-          publishedAt: new Date().toISOString(),
-          source: 'Government News',
+          id: 'news_1_en',
+          title: 'New Beneficiary Registration Opens for PM-KISAN Scheme',
+          description: 'Registration for new farmers under the Pradhan Mantri Kisan Samman Nidhi (PM-KISAN) scheme has commenced. Under this scheme, eligible farmers receive financial assistance of Rs 6000 per year in three installments.',
+          summary: 'PM-KISAN scheme opens registration for new farmers. Rs 6000 annual assistance provided.',
+          source: 'Ministry of Agriculture',
+          publishedAt: new Date().toLocaleDateString('en-IN'),
+          url: 'https://pmkisan.gov.in/',
+          urlToImage: 'https://via.placeholder.com/400x200?text=PM-KISAN',
           category: 'government',
-          priority: 'high'
+          priority: 'high',
+          location: 'national',
+          language: 'en',
+          readingTime: 2
         },
         {
-          id: 2,
-          title: 'Weather Department Warning',
-          description: 'Heavy rainfall expected in several districts of Uttar Pradesh in next 48 hours. Farmers advised to protect crops.',
-          url: '#',
-          publishedAt: new Date().toISOString(),
+          id: 'news_2_en',
+          title: `Weather Department Issues Heavy Rainfall Warning for ${district}`,
+          description: `The Meteorological Department has predicted heavy rainfall in ${district} and surrounding areas over the next 48 hours. Farmers are advised to take necessary measures to protect their crops, especially rice and sugarcane, by ensuring proper drainage systems.`,
+          summary: `Heavy rainfall warning issued for ${district}. Farmers advised to protect crops.`,
           source: 'Weather Department',
+          publishedAt: new Date().toLocaleDateString('en-IN'),
+          url: 'https://mausam.imd.gov.in/',
+          urlToImage: 'https://via.placeholder.com/400x200?text=Weather+Alert',
           category: 'weather',
-          priority: 'high'
-        }
-      ],
-      ur: [
+          priority: 'high',
+          location: 'local',
+          language: 'en',
+          readingTime: 3
+        },
         {
-          id: 1,
-          title: 'پی ایم کسان اسکیم میں اپڈیٹ',
-          description: 'کسانوں کے لیے پی ایم کسان اسکیم کے تحت نئے فوائد کا اعلان۔ حکومت رقم بڑھانے پر غور کر رہی ہے۔',
-          url: '#',
-          publishedAt: new Date().toISOString(),
-          source: 'سرکاری خبریں',
+          id: 'news_3_en',
+          title: 'New Services Added to Ayushman Bharat Scheme',
+          description: 'Mental health services have been included in the Ayushman Bharat Pradhan Mantri Jan Arogya Yojana. Additionally, telemedicine facilities have been made available, allowing rural residents to consult doctors from home.',
+          summary: 'Ayushman Bharat now includes mental health and telemedicine services.',
+          source: 'Ministry of Health',
+          publishedAt: new Date(Date.now() - 86400000).toLocaleDateString('en-IN'),
+          url: 'https://pmjay.gov.in/',
+          urlToImage: 'https://via.placeholder.com/400x200?text=Ayushman+Bharat',
+          category: 'health',
+          priority: 'medium',
+          location: 'national',
+          language: 'en',
+          readingTime: 2
+        },
+        {
+          id: 'news_4_en',
+          title: `${state} Launches New Digital India Initiative`,
+          description: `The ${state} government has launched a new scheme under Digital India Mission to enhance internet connectivity in rural areas. Under this initiative, at least one digital service center will be established in every village.`,
+          summary: `${state} to establish digital service centers in every village under Digital India.`,
+          source: 'Digital India',
+          publishedAt: new Date(Date.now() - 172800000).toLocaleDateString('en-IN'),
+          url: 'https://digitalindia.gov.in/',
+          urlToImage: 'https://via.placeholder.com/400x200?text=Digital+India',
+          category: 'infrastructure',
+          priority: 'medium',
+          location: 'state',
+          language: 'en',
+          readingTime: 2
+        },
+        {
+          id: 'news_5_en',
+          title: 'MGNREGA Wage Rates Increased',
+          description: 'Wage rates under the Mahatma Gandhi National Rural Employment Guarantee Act (MGNREGA) have been increased. Workers will now receive Rs 220 per day. This increase has been made considering the inflation rate.',
+          summary: 'MGNREGA daily wage increased to Rs 220 per day.',
+          source: 'Ministry of Rural Development',
+          publishedAt: new Date(Date.now() - 259200000).toLocaleDateString('en-IN'),
+          url: 'https://nrega.nic.in/',
+          urlToImage: 'https://via.placeholder.com/400x200?text=MGNREGA',
           category: 'government',
-          priority: 'high'
+          priority: 'medium',
+          location: 'national',
+          language: 'en',
+          readingTime: 1
         }
       ]
     };
 
-    return mockData[language] || mockData.hi;
+    return newsData[language] || newsData['hi'];
+  }
+
+  // Get news by category
+  async getNewsByCategory(category, language = 'hi') {
+    const allNews = await this.getLocationNews('Uttar Pradesh', 'Muzaffarnagar', language);
+    return allNews.filter(news => news.category === category);
+  }
+
+  // Search news
+  async searchNews(query, language = 'hi') {
+    const allNews = await this.getLocationNews('Uttar Pradesh', 'Muzaffarnagar', language);
+    const lowerQuery = query.toLowerCase();
+    
+    return allNews.filter(news => 
+      news.title.toLowerCase().includes(lowerQuery) ||
+      news.description.toLowerCase().includes(lowerQuery) ||
+      news.summary.toLowerCase().includes(lowerQuery)
+    );
+  }
+
+  // Get trending news
+  async getTrendingNews(language = 'hi') {
+    const allNews = await this.getLocationNews('Uttar Pradesh', 'Muzaffarnagar', language);
+    return allNews.filter(news => news.priority === 'high').slice(0, 3);
   }
 }
 
