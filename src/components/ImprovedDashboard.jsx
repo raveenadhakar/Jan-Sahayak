@@ -10,7 +10,7 @@ import { locationService } from '../services/locationService';
 import UserProfileForm from './UserProfileForm';
 import OfficialsContact from './OfficialsContact';
 
-const ImprovedDashboard = ({ userInfo, selectedLanguage, onTabChange }) => {
+const ImprovedDashboard = ({ userInfo, selectedLanguage, onTabChange, setUserInfo }) => {
   const [stats, setStats] = useState({
     totalComplaints: 12,
     resolvedComplaints: 8,

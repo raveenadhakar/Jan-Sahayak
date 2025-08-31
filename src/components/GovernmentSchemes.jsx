@@ -11,7 +11,7 @@ import { downloadService } from '../services/downloadService';
 import { locationService } from '../services/locationService';
 import { authService } from '../services/authService';
 
-const GovernmentSchemes = ({ userInfo, selectedLanguage }) => {
+const GovernmentSchemes = ({ userInfo, selectedLanguage, setUserInfo }) => {
   const [schemes, setSchemes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -21,45 +21,54 @@ const GovernmentSchemes = ({ userInfo, selectedLanguage }) => {
   // Load real scheme data
   useEffect(() => {
     loadSchemeData();
-  }, [userInfo.state, userInfo.district]);
+  }, [userInfo, selectedLanguage]);
 
   const loadSchemeData = async () => {
     setIsLoading(true);
     setError(null);
     try {
+      // Always show schemes regardless of login status
       const user = authService.getCurrentUser();
       setCurrentUser(user);
       
+      // Get schemes data - show all schemes but mark eligibility based on user profile
+      const allSchemes = getMockSchemes();
+      
       if (user && user.state && user.district) {
-        // Get location-based schemes and eligibility
-        const eligibility = locationService.checkSchemeEligibility(user);
-        setEligibilityInfo(eligibility);
-        
-        // Convert eligible schemes to display format
-        const schemeData = eligibility.eligible.map(scheme => ({
-          id: scheme.name.toLowerCase().replace(/[^a-z0-9]/g, ''),
-          name: scheme.name,
-          nameHi: scheme.description,
-          nameEn: scheme.name,
-          nameUr: scheme.name,
-          description: scheme.benefits,
-          descriptionHi: scheme.benefits,
-          descriptionEn: scheme.benefits,
-          descriptionUr: scheme.benefits,
-          benefits: scheme.benefits,
-          requirements: scheme.requirements,
-          eligible: true,
-          status: 'active',
-          category: 'government',
-          applicationProcess: 'Online/Offline application available',
-          documents: scheme.requirements,
-          contactInfo: '1800-180-1551'
-        }));
-        
-        setSchemes(schemeData);
+        // User is logged in - show personalized eligibility
+        try {
+          const eligibility = locationService.checkSchemeEligibility(user);
+          setEligibilityInfo(eligibility);
+          
+          // Mark schemes as eligible/not eligible based on user profile
+          const personalizedSchemes = allSchemes.map(scheme => {
+            const isEligible = eligibility.eligible.some(eligibleScheme => 
+              eligibleScheme.name.toLowerCase().includes(scheme.name.toLowerCase()) ||
+              scheme.name.toLowerCase().includes(eligibleScheme.name.toLowerCase())
+            );
+            
+            return {
+              ...scheme,
+              status: isEligible ? 'eligible' : 'registered',
+              personalizedMessage: isEligible ? 
+                `आप ${scheme.name} के लिए पात्र हैं!` : 
+                `${scheme.name} के लिए अधिक जानकारी चाहिए।`
+            };
+          });
+          
+          setSchemes(personalizedSchemes);
+        } catch (locationError) {
+          console.log('Location service error, using default schemes:', locationError);
+          setSchemes(allSchemes);
+        }
       } else {
-        // Fallback to mock data if user profile incomplete
-        setSchemes(getMockSchemes());
+        // User not logged in - show all schemes with general eligibility
+        const generalSchemes = allSchemes.map(scheme => ({
+          ...scheme,
+          status: 'eligible',
+          personalizedMessage: 'लॉगिन करें और अपनी पात्रता जांचें।'
+        }));
+        setSchemes(generalSchemes);
       }
     } catch (error) {
       console.error('Error loading scheme data:', error);
@@ -97,7 +106,9 @@ const GovernmentSchemes = ({ userInfo, selectedLanguage }) => {
       documents: ['आधार कार्ड', 'बैंक पासबुक', 'भूमि दस्तावेज'],
       applicationProcess: 'ऑनलाइन या CSC केंद्र पर आवेदन करें',
       helpline: '155261',
-      website: 'pmkisan.gov.in'
+      website: 'pmkisan.gov.in',
+      applicationUrl: 'https://pmkisan.gov.in/RegistrationForm.aspx',
+      statusUrl: 'https://pmkisan.gov.in/BeneficiaryStatus.aspx'
     },
     {
       id: 'ayushman',
@@ -124,7 +135,9 @@ const GovernmentSchemes = ({ userInfo, selectedLanguage }) => {
       documents: ['राशन कार्ड', 'आधार कार्ड', 'आय प्रमाण पत्र'],
       applicationProcess: 'नजदीकी CSC या अस्पताल में संपर्क करें',
       helpline: '14555',
-      website: 'pmjay.gov.in'
+      website: 'pmjay.gov.in',
+      applicationUrl: 'https://pmjay.gov.in/search/login',
+      statusUrl: 'https://pmjay.gov.in/search/login'
     },
     {
       id: 'pension',
@@ -152,7 +165,9 @@ const GovernmentSchemes = ({ userInfo, selectedLanguage }) => {
       documents: ['आधार कार्ड', 'आयु प्रमाण पत्र', 'आय प्रमाण पत्र', 'बैंक पासबुक'],
       applicationProcess: 'जिला कलेक्टर कार्यालय में आवेदन करें',
       helpline: '1800-180-1551',
-      website: 'nsap.nic.in'
+      website: 'nsap.nic.in',
+      applicationUrl: 'https://nsap.nic.in/user/login',
+      statusUrl: 'https://nsap.nic.in/user/login'
     },
     {
       id: 'ration',
@@ -180,7 +195,9 @@ const GovernmentSchemes = ({ userInfo, selectedLanguage }) => {
       documents: ['आधार कार्ड', 'निवास प्रमाण पत्र', 'आय प्रमाण पत्र'],
       applicationProcess: 'खाद्य विभाग कार्यालय में आवेदन करें',
       helpline: '1967',
-      website: 'nfsa.gov.in'
+      website: 'nfsa.gov.in',
+      applicationUrl: 'https://nfsa.gov.in/portal/ration-card-details',
+      statusUrl: 'https://nfsa.gov.in/portal/ration-card-details'
     },
     {
       id: 'housing',
@@ -208,7 +225,9 @@ const GovernmentSchemes = ({ userInfo, selectedLanguage }) => {
       documents: ['आधार कार्ड', 'BPL कार्ड', 'भूमि दस्तावेज'],
       applicationProcess: 'ग्राम पंचायत या ब्लॉक कार्यालय में आवेदन करें',
       helpline: '1800-11-6446',
-      website: 'pmayg.nic.in'
+      website: 'pmayg.nic.in',
+      applicationUrl: 'https://pmayg.nic.in/netiay/home.aspx',
+      statusUrl: 'https://pmayg.nic.in/netiay/Benificiary.aspx'
     },
     {
       id: 'education',
@@ -236,7 +255,9 @@ const GovernmentSchemes = ({ userInfo, selectedLanguage }) => {
       documents: ['जन्म प्रमाण पत्र', 'आधार कार्ड', 'निवास प्रमाण पत्र'],
       applicationProcess: 'नजदीकी सरकारी स्कूल में संपर्क करें',
       helpline: '1800-11-0031',
-      website: 'ssa.nic.in'
+      website: 'ssa.nic.in',
+      applicationUrl: 'https://ssa.nic.in/admissions',
+      statusUrl: 'https://ssa.nic.in/student-status'
     }
   ];
 
@@ -458,12 +479,18 @@ const GovernmentSchemes = ({ userInfo, selectedLanguage }) => {
           {t.viewDetails}
         </button>
         {scheme.status === 'eligible' && (
-          <button className="flex-1 bg-gradient-to-r from-green-500 to-green-600 text-white py-4 px-4 rounded-2xl hover:from-green-600 hover:to-green-700 transition-all font-bold shadow-lg transform hover:scale-105 text-lg">
+          <button 
+            onClick={() => window.open(scheme.applicationUrl, '_blank')}
+            className="flex-1 bg-gradient-to-r from-green-500 to-green-600 text-white py-4 px-4 rounded-2xl hover:from-green-600 hover:to-green-700 transition-all font-bold shadow-lg transform hover:scale-105 text-lg"
+          >
             {t.apply}
           </button>
         )}
         {(scheme.status === 'registered' || scheme.status === 'pending' || scheme.status === 'active') && (
-          <button className="flex-1 bg-gradient-to-r from-orange-500 to-orange-600 text-white py-4 px-4 rounded-2xl hover:from-orange-600 hover:to-orange-700 transition-all font-bold shadow-lg transform hover:scale-105 text-lg">
+          <button 
+            onClick={() => window.open(scheme.statusUrl, '_blank')}
+            className="flex-1 bg-gradient-to-r from-orange-500 to-orange-600 text-white py-4 px-4 rounded-2xl hover:from-orange-600 hover:to-orange-700 transition-all font-bold shadow-lg transform hover:scale-105 text-lg"
+          >
             {t.checkStatus}
           </button>
         )}
@@ -661,14 +688,20 @@ const GovernmentSchemes = ({ userInfo, selectedLanguage }) => {
               </button>
 
               {selectedScheme.status === 'eligible' && (
-                <button className="bg-gradient-to-r from-green-500 to-green-600 text-white px-10 py-5 rounded-2xl hover:from-green-600 hover:to-green-700 transition-all flex items-center space-x-4 font-bold shadow-xl transform hover:scale-105 text-lg border-3 border-green-300">
+                <button 
+                  onClick={() => window.open(selectedScheme.applicationUrl, '_blank')}
+                  className="bg-gradient-to-r from-green-500 to-green-600 text-white px-10 py-5 rounded-2xl hover:from-green-600 hover:to-green-700 transition-all flex items-center space-x-4 font-bold shadow-xl transform hover:scale-105 text-lg border-3 border-green-300"
+                >
                   <ExternalLink className="w-6 h-6" />
                   <span>{t.apply}</span>
                 </button>
               )}
 
               {(selectedScheme.status === 'registered' || selectedScheme.status === 'pending' || selectedScheme.status === 'active') && (
-                <button className="bg-gradient-to-r from-orange-500 to-orange-600 text-white px-10 py-5 rounded-2xl hover:from-orange-600 hover:to-orange-700 transition-all flex items-center space-x-4 font-bold shadow-xl transform hover:scale-105 text-lg border-3 border-orange-300">
+                <button 
+                  onClick={() => window.open(selectedScheme.statusUrl, '_blank')}
+                  className="bg-gradient-to-r from-orange-500 to-orange-600 text-white px-10 py-5 rounded-2xl hover:from-orange-600 hover:to-orange-700 transition-all flex items-center space-x-4 font-bold shadow-xl transform hover:scale-105 text-lg border-3 border-orange-300"
+                >
                   <Clock className="w-6 h-6" />
                   <span>{t.checkStatus}</span>
                 </button>

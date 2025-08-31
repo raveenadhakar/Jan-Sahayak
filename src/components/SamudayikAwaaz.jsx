@@ -5,7 +5,7 @@ import {
     Calendar, MapPin, FileText, CheckCircle, Wheat,
     Shield, Gift, HelpCircle, LogIn, LogOut, Play, Pause,
     Sparkles, TrendingUp, AlertTriangle, Users, Building2,
-    Sun, Cloud, Droplets, Wind, Star, Award, User
+    Sun, Cloud, Droplets, Wind, Star, Award, User, MessageSquare, X
 } from 'lucide-react';
 import { geminiService } from '../services/geminiService';
 import { speechService } from '../services/speechService';
@@ -19,6 +19,7 @@ import AuthModal from './AuthModal';
 import NotificationPanel from './NotificationPanel';
 import QuickComplaintForm from './QuickComplaintForm';
 import OfficialsContact from './OfficialsContact';
+import VoiceAgentUI from './VoiceAgentUI';
 
 const SamudayikAwaaz = () => {
     const [activeTab, setActiveTab] = useState('home');
@@ -45,6 +46,11 @@ const SamudayikAwaaz = () => {
     const [error, setError] = useState(null);
     const [showQuickComplaint, setShowQuickComplaint] = useState(false);
     const [showOfficialsContact, setShowOfficialsContact] = useState(false);
+    const [voiceConversationHistory, setVoiceConversationHistory] = useState([]);
+    const [showVoiceHistory, setShowVoiceHistory] = useState(false);
+    const [isVoiceMode, setIsVoiceMode] = useState(false);
+    const [showVoiceAgent, setShowVoiceAgent] = useState(true);
+    const [voiceAgentMode, setVoiceAgentMode] = useState('overlay'); // 'overlay', 'modal', 'fullscreen'
 
     // Language translations
     const translations = {
@@ -260,7 +266,7 @@ const SamudayikAwaaz = () => {
         }
     };
 
-    // Voice command handler with AI response
+    // Enhanced Voice command handler with advanced AI response for MUrf AI Challenge
     const handleVoiceCommand = async (command) => {
         setIsProcessing(true);
         setError(null);
@@ -271,49 +277,113 @@ const SamudayikAwaaz = () => {
             let response = '';
             let shouldNavigate = false;
 
+            // Enhanced Voice Commands for MUrf AI Challenge
+            
+            // Profile completion commands
+            if (lowerCommand.includes('प्रोफाइल') || lowerCommand.includes('profile') || lowerCommand.includes('پروفائل') ||
+                lowerCommand.includes('जानकारी भरें') || lowerCommand.includes('complete profile') || lowerCommand.includes('معلومات بھریں')) {
+                if (!isLoggedIn) {
+                    response = selectedLanguage === 'hi' ? 'आपको पहले लॉगिन करना होगा। मैं आपको लॉगिन पेज पर ले जा रहा हूं।' :
+                              selectedLanguage === 'en' ? 'You need to login first. Taking you to the login page.' :
+                              'آپ کو پہلے لاگ ان کرنا ہوگا۔ آپ کو لاگ ان پیج پر لے جا رہا ہوں۔';
+                    setShowLogin(true);
+                } else {
+                    response = selectedLanguage === 'hi' ? 'मैं आपको होम पेज पर ले जा रहा हूं जहां आप अपनी प्रोफाइल पूरी कर सकते हैं।' :
+                              selectedLanguage === 'en' ? 'Taking you to home page where you can complete your profile.' :
+                              'آپ کو ہوم پیج پر لے جا رہا ہوں جہاں آپ اپنی پروفائل مکمل کر سکتے ہیں۔';
+                    setActiveTab('home');
+                }
+                shouldNavigate = true;
+            }
+            // Voice-guided complaint filing
+            else if (lowerCommand.includes('आवाज़ में शिकायत') || lowerCommand.includes('voice complaint') || lowerCommand.includes('آواز میں شکایت') ||
+                     lowerCommand.includes('बोलकर शिकायत') || lowerCommand.includes('speak complaint')) {
+                response = selectedLanguage === 'hi' ? 'बहुत अच्छा! मैं आपकी आवाज़ में शिकायत दर्ज करने में मदद करूंगा। शिकायत सेक्शन खोल रहा हूं।' :
+                          selectedLanguage === 'en' ? 'Great! I will help you file a voice complaint. Opening complaints section.' :
+                          'بہترین! میں آپ کی آواز میں شکایت درج کرنے میں مدد کروں گا۔ شکایات کا سیکشن کھول رہا ہوں۔';
+                setActiveTab('complaints');
+                shouldNavigate = true;
+            }
+            // Scheme eligibility check with voice
+            else if (lowerCommand.includes('योजना की पात्रता') || lowerCommand.includes('scheme eligibility') || lowerCommand.includes('اسکیم کی اہلیت') ||
+                     lowerCommand.includes('क्या मैं योग्य हूं') || lowerCommand.includes('am i eligible') || lowerCommand.includes('کیا میں اہل ہوں')) {
+                response = selectedLanguage === 'hi' ? 'मैं आपकी योजनाओं की पात्रता जांच रहा हूं। सरकारी योजनाओं का सेक्शन खोल रहा हूं।' :
+                          selectedLanguage === 'en' ? 'Checking your scheme eligibility. Opening government schemes section.' :
+                          'آپ کی اسکیموں کی اہلیت چیک کر رہا ہوں۔ سرکاری اسکیموں کا سیکشن کھول رہا ہوں۔';
+                setActiveTab('rights');
+                shouldNavigate = true;
+            }
             // Weather related queries
-            if (lowerCommand.includes('मौसम') || lowerCommand.includes('weather') || lowerCommand.includes('موسم') || 
+            else if (lowerCommand.includes('मौसम') || lowerCommand.includes('weather') || lowerCommand.includes('موسم') || 
                 lowerCommand.includes('आज का मौसम') || lowerCommand.includes('aaj ka mausam')) {
-                response = selectedLanguage === 'hi' ? 'आज मुज़फ्फरनगर में हल्की बारिश की संभावना है। तापमान 28°C है। मैं आपको मौसम सेक्शन पर ले जा रहा हूं।' :
-                          selectedLanguage === 'en' ? 'Today in Muzaffarnagar, there is a chance of light rain. Temperature is 28°C. Taking you to weather section.' :
-                          'آج مظفر نگر میں ہلکی بارش کا امکان ہے۔ درجہ حرارت 28°C ہے۔ آپ کو موسمی سیکشن میں لے جا رہا ہوں۔';
+                
+                // Get real weather data
+                try {
+                    const { weatherService } = await import('../services/weatherService');
+                    const weatherData = await weatherService.getLocationWeather(
+                        userInfo.state || 'Uttar Pradesh',
+                        userInfo.district || 'Muzaffarnagar',
+                        userInfo.village || ''
+                    );
+                    
+                    response = selectedLanguage === 'hi' ? 
+                        `${weatherData.location} में आज का मौसम: ${weatherData.current.condition}, तापमान ${weatherData.current.temperature}°C है। ${weatherData.current.advice}` :
+                        selectedLanguage === 'en' ? 
+                        `Today's weather in ${weatherData.location}: ${weatherData.current.conditionEn}, temperature ${weatherData.current.temperature}°C. ${weatherData.current.advice}` :
+                        `${weatherData.location} میں آج کا موسم: ${weatherData.current.condition}، درجہ حرارت ${weatherData.current.temperature}°C ہے۔ ${weatherData.current.advice}`;
+                } catch (weatherError) {
+                    console.error('Weather service error:', weatherError);
+                    response = selectedLanguage === 'hi' ? 
+                        `${userInfo.district || 'आपके क्षेत्र'} में मौसम की जानकारी देख रहा हूं। होम पेज पर जा रहा हूं।` :
+                        selectedLanguage === 'en' ? 
+                        `Checking weather information for ${userInfo.district || 'your area'}. Going to home page.` :
+                        `${userInfo.district || 'آپ کے علاقے'} میں موسم کی معلومات دیکھ رہا ہوں۔ ہوم پیج پر جا رہا ہوں۔`;
+                }
+                
                 setActiveTab('home');
                 shouldNavigate = true;
             }
             // Complaint related queries
             else if (lowerCommand.includes('शिकायत') || lowerCommand.includes('complaint') || lowerCommand.includes('شکایت')) {
-                response = selectedLanguage === 'hi' ? 'मैं आपको शिकायत सेक्शन पर ले जा रहा हूं। यहां आप अपनी समस्या दर्ज कर सकते हैं।' :
-                          selectedLanguage === 'en' ? 'Taking you to complaints section. Here you can register your issues.' :
-                          'آپ کو شکایات کے سیکشن میں لے جا رہا ہوں۔ یہاں آپ اپنی شکایت درج کر سکتے ہیں۔';
+                response = selectedLanguage === 'hi' ? 'मैं आपको शिकायत सेक्शन पर ले जा रहा हूं। यहां आप आवाज़ में भी अपनी समस्या दर्ज कर सकते हैं।' :
+                          selectedLanguage === 'en' ? 'Taking you to complaints section. Here you can register your issues using voice as well.' :
+                          'آپ کو شکایات کے سیکشن میں لے جا رہا ہوں۔ یہاں آپ آواز میں بھی اپنی شکایت درج کر سکتے ہیں۔';
                 setActiveTab('complaints');
                 shouldNavigate = true;
             }
             // Schemes related queries
             else if (lowerCommand.includes('योजना') || lowerCommand.includes('scheme') || lowerCommand.includes('اسکیم') ||
                      lowerCommand.includes('सरकारी योजना') || lowerCommand.includes('yojana')) {
-                response = selectedLanguage === 'hi' ? 'मैं आपको सरकारी योजनाओं के सेक्शन पर ले जा रहा हूं। यहां आप PM-KISAN, आयुष्मान भारत जैसी योजनाओं की जानकारी देख सकते हैं।' :
-                          selectedLanguage === 'en' ? 'Taking you to government schemes section. Here you can see information about PM-KISAN, Ayushman Bharat and other schemes.' :
-                          'آپ کو سرکاری اسکیموں کے سیکشن میں لے جا رہا ہوں۔ یہاں آپ پی ایم کسان، آیوشمان بھارت جیسی اسکیموں کی معلومات دیکھ سکتے ہیں۔';
+                response = selectedLanguage === 'hi' ? 'मैं आपको सरकारी योजनाओं के सेक्शन पर ले जा रहा हूं। यहां आप PM-KISAN, आयुष्मान भारत जैसी योजनाओं की जानकारी देख सकते हैं और आवाज़ में पूछ सकते हैं।' :
+                          selectedLanguage === 'en' ? 'Taking you to government schemes section. Here you can see information about PM-KISAN, Ayushman Bharat and ask questions using voice.' :
+                          'آپ کو سرکاری اسکیموں کے سیکشن میں لے جا رہا ہوں۔ یہاں آپ پی ایم کسان، آیوشمان بھارت جیسی اسکیموں کی معلومات دیکھ سکتے ہیں اور آواز میں سوال پوچھ سکتے ہیں۔';
                 setActiveTab('rights');
                 shouldNavigate = true;
             }
             // Village voice related queries
             else if (lowerCommand.includes('ग्रामवाणी') || lowerCommand.includes('village') || lowerCommand.includes('گاؤں') ||
                      lowerCommand.includes('गांव की आवाज') || lowerCommand.includes('gram vaani')) {
-                response = selectedLanguage === 'hi' ? 'मैं आपको ग्रामवाणी सेक्शन पर ले जा रहा हूं। यहां आप गांव की खबरें और घोषणाएं सुन सकते हैं।' :
-                          selectedLanguage === 'en' ? 'Taking you to Village Voice section. Here you can listen to village news and announcements.' :
-                          'آپ کو گرام وانی سیکشن میں لے جا رہا ہوں۔ یہاں آپ گاؤں کی خبریں اور اعلانات سن سکتے ہیں۔';
+                response = selectedLanguage === 'hi' ? 'मैं आपको ग्रामवाणी सेक्शन पर ले जा रहा हूं। यहां आप गांव की खबरें सुन सकते हैं और आवाज़ में अपनी बात कह सकते हैं।' :
+                          selectedLanguage === 'en' ? 'Taking you to Village Voice section. Here you can listen to village news and share your voice.' :
+                          'آپ کو گرام وانی سیکشن میں لے جا رہا ہوں۔ یہاں آپ گاؤں کی خبریں سن سکتے ہیں اور آواز میں اپنی بات کہہ سکتے ہیں۔';
                 setActiveTab('gramvaani');
                 shouldNavigate = true;
             }
             // Home related queries
             else if (lowerCommand.includes('होम') || lowerCommand.includes('home') || lowerCommand.includes('ہوم') ||
                      lowerCommand.includes('मुख्य पृष्ठ') || lowerCommand.includes('dashboard')) {
-                response = selectedLanguage === 'hi' ? 'मैं आपको होम पेज पर ले जा रहा हूं।' :
-                          selectedLanguage === 'en' ? 'Taking you to home page.' :
-                          'آپ کو ہوم پیج پر لے جا رہا ہوں۔';
+                response = selectedLanguage === 'hi' ? 'मैं आपको होम पेज पर ले जा रहा हूं। यहां आप सभी सेवाओं का उपयोग कर सकते हैं।' :
+                          selectedLanguage === 'en' ? 'Taking you to home page. Here you can access all services.' :
+                          'آپ کو ہوم پیج پر لے جا رہا ہوں۔ یہاں آپ تمام خدمات کا استعمال کر سکتے ہیں۔';
                 setActiveTab('home');
                 shouldNavigate = true;
+            }
+            // Voice assistant help
+            else if (lowerCommand.includes('मदद') || lowerCommand.includes('help') || lowerCommand.includes('مدد') ||
+                     lowerCommand.includes('कैसे करें') || lowerCommand.includes('how to') || lowerCommand.includes('کیسے کریں')) {
+                response = selectedLanguage === 'hi' ? 'मैं जन सहायक हूं, आपका आवाज़ सहायक। आप मुझसे मौसम, सरकारी योजनाओं, शिकायत दर्ज करने, गांव की खबरों के बारे में पूछ सकते हैं। बस बोलिए "शिकायत दर्ज करें" या "योजना की जानकारी" जैसे वाक्य।' :
+                          selectedLanguage === 'en' ? 'I am Jan Sahayak, your voice assistant. You can ask me about weather, government schemes, filing complaints, village news. Just say phrases like "file complaint" or "scheme information".' :
+                          'میں جن سہایک ہوں، آپ کا آواز کا معاون۔ آپ مجھ سے موسم، سرکاری اسکیمیں، شکایت درج کرنے، گاؤں کی خبروں کے بارے میں پوچھ سکتے ہیں۔ بس کہیے "شکایت درج کریں" یا "اسکیم کی معلومات" جیسے جملے۔';
             }
             // Generic greeting or unclear command
             else {
@@ -322,22 +392,32 @@ const SamudayikAwaaz = () => {
                     response = await geminiService.processVoiceCommand(command, selectedLanguage, userInfo);
                 } catch (aiError) {
                     console.error('AI service error:', aiError);
-                    response = selectedLanguage === 'hi' ? 'मैं आपकी मदद करने के लिए यहां हूं। आप मुझसे मौसम, सरकारी योजनाओं, शिकायत दर्ज करने या गांव की खबरों के बारे में पूछ सकते हैं।' :
-                              selectedLanguage === 'en' ? 'I am here to help you. You can ask me about weather, government schemes, filing complaints, or village news.' :
-                              'میں آپ کی مدد کے لیے یہاں ہوں۔ آپ مجھ سے موسم، سرکاری اسکیمیں، شکایت درج کرنے یا گاؤں کی خبروں کے بارے میں پوچھ سکتے ہیں۔';
+                    response = selectedLanguage === 'hi' ? 'मैं आपकी मदद करने के लिए यहां हूं। आप मुझसे "मदद" कहकर सभी आवाज़ कमांड जान सकते हैं। या फिर "मौसम", "योजना", "शिकायत" जैसे शब्द बोलें।' :
+                              selectedLanguage === 'en' ? 'I am here to help you. Say "help" to learn all voice commands. Or speak words like "weather", "schemes", "complaints".' :
+                              'میں آپ کی مدد کے لیے یہاں ہوں۔ تمام آواز کمانڈز جاننے کے لیے "مدد" کہیں۔ یا پھر "موسم"، "اسکیم"، "شکایت" جیسے الفاظ بولیں۔';
                 }
             }
 
             setAiResponse(response);
 
-            // Speak the response
+            // Add to conversation history
+            const conversationEntry = {
+                id: Date.now(),
+                userInput: command,
+                aiResponse: response,
+                timestamp: new Date(),
+                language: selectedLanguage
+            };
+            setVoiceConversationHistory(prev => [conversationEntry, ...prev.slice(0, 9)]); // Keep last 10 conversations
+
+            // Enhanced speech with better voice quality using MUrf API
             await speechService.textToSpeech(response, selectedLanguage);
 
         } catch (error) {
             console.error('Error processing voice command:', error);
-            const errorMessage = selectedLanguage === 'hi' ? 'माफ करें, मुझे समझने में समस्या हुई। कृपया दोबारा कोशिश करें।' :
-                selectedLanguage === 'en' ? 'Sorry, I had trouble understanding. Please try again.' :
-                    'معاف کریں، مجھے سمجھنے میں مسئلہ ہوا۔ براہ کرم دوبارہ کوشش کریں۔';
+            const errorMessage = selectedLanguage === 'hi' ? 'माफ करें, मुझे समझने में समस्या हुई। कृपया दोबारा कोशिश करें या "मदद" कहें।' :
+                selectedLanguage === 'en' ? 'Sorry, I had trouble understanding. Please try again or say "help".' :
+                    'معاف کریں، مجھے سمجھنے میں مسئلہ ہوا۔ براہ کرم دوبارہ کوشش کریں یا "مدد" کہیں۔';
             setAiResponse(errorMessage);
             setError('Voice command processing failed');
             await speechService.textToSpeech(errorMessage, selectedLanguage);
@@ -410,8 +490,10 @@ const SamudayikAwaaz = () => {
         </button>
     );
 
+    // Enhanced Voice Interface for MUrf AI Challenge
     const VoiceButton = () => (
         <div className="fixed bottom-24 right-6 z-50">
+            {/* Main Voice Button */}
             <button
                 onClick={toggleVoiceRecording}
                 className={`w-20 h-20 rounded-full shadow-2xl flex items-center justify-center transition-all transform border-4 ${isListening
@@ -429,16 +511,117 @@ const SamudayikAwaaz = () => {
                     <Mic className="w-10 h-10 text-white" />
                 )}
             </button>
+
+            {/* Voice Mode Toggle */}
+            <button
+                onClick={() => setIsVoiceMode(!isVoiceMode)}
+                className={`absolute -top-16 right-0 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all ${isVoiceMode
+                    ? 'bg-green-500 text-white'
+                    : 'bg-white text-gray-600 hover:bg-gray-100'
+                    }`}
+                title={isVoiceMode ? 'Voice Mode ON' : 'Voice Mode OFF'}
+            >
+                {isVoiceMode ? <Volume2 className="w-6 h-6" /> : <VolumeX className="w-6 h-6" />}
+            </button>
+
+            {/* Voice History Button */}
+            {voiceConversationHistory.length > 0 && (
+                <button
+                    onClick={() => setShowVoiceHistory(true)}
+                    className="absolute -top-32 right-0 w-12 h-12 rounded-full shadow-lg bg-white text-gray-600 hover:bg-gray-100 flex items-center justify-center transition-all"
+                    title="Voice Conversation History"
+                >
+                    <MessageSquare className="w-6 h-6" />
+                    <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                        {voiceConversationHistory.length}
+                    </span>
+                </button>
+            )}
+
+            {/* Enhanced Voice Feedback */}
             {isListening && (
-                <div className="absolute -top-20 right-0 bg-white rounded-2xl p-4 shadow-xl min-w-64 border-2 border-blue-200">
+                <div className="absolute -top-24 right-24 bg-white rounded-2xl p-4 shadow-xl min-w-80 border-2 border-blue-200">
                     <div className="flex items-center space-x-3 mb-3">
                         <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
                         <span className="text-lg text-red-600 font-bold">{t.listening}</span>
+                        <div className="ml-auto text-xs text-gray-500">
+                            {selectedLanguage === 'hi' && 'हिंदी में बोलें'}
+                            {selectedLanguage === 'en' && 'Speak in English'}
+                            {selectedLanguage === 'ur' && 'اردو میں بولیں'}
+                        </div>
                     </div>
                     {transcript && (
-                        <p className="text-sm text-gray-600 italic mb-2">"{transcript}"</p>
+                        <div className="mb-3">
+                            <p className="text-sm font-semibold text-gray-700 mb-1">{t.youSaid}</p>
+                            <p className="text-sm text-gray-600 italic bg-gray-50 p-2 rounded">"{transcript}"</p>
+                        </div>
                     )}
-                    <p className="text-xs text-gray-500">{t.startVoice}</p>
+                    {isProcessing && (
+                        <div className="mb-3">
+                            <p className="text-sm font-semibold text-blue-700 mb-1">{t.janSahayak}</p>
+                            <p className="text-sm text-blue-600 bg-blue-50 p-2 rounded">{t.preparing}</p>
+                        </div>
+                    )}
+                    <div className="flex items-center justify-between">
+                        <p className="text-xs text-gray-500">{t.startVoice}</p>
+                        <div className="flex space-x-2">
+                            <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">
+                                {selectedLanguage === 'hi' && 'मौसम'}
+                                {selectedLanguage === 'en' && 'Weather'}
+                                {selectedLanguage === 'ur' && 'موسم'}
+                            </span>
+                            <span className="text-xs bg-green-100 text-green-600 px-2 py-1 rounded">
+                                {selectedLanguage === 'hi' && 'योजना'}
+                                {selectedLanguage === 'en' && 'Schemes'}
+                                {selectedLanguage === 'ur' && 'اسکیم'}
+                            </span>
+                            <span className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded">
+                                {selectedLanguage === 'hi' && 'शिकायत'}
+                                {selectedLanguage === 'en' && 'Complaint'}
+                                {selectedLanguage === 'ur' && 'شکایت'}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* AI Response Display */}
+            {aiResponse && !isListening && (
+                <div className="absolute -top-20 right-24 bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-4 shadow-xl min-w-80 border-2 border-purple-200">
+                    <div className="flex items-center space-x-3 mb-3">
+                        <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                            <Sparkles className="w-4 h-4 text-white" />
+                        </div>
+                        <span className="text-lg font-bold text-purple-700">{t.janSahayak}</span>
+                        <button
+                            onClick={() => speakText(aiResponse, 'ai-response')}
+                            className={`ml-auto p-1 rounded-full transition-all ${isSpeaking && currentSpeakingId === 'ai-response'
+                                ? 'bg-red-100 text-red-600'
+                                : 'bg-purple-100 text-purple-600 hover:bg-purple-200'
+                                }`}
+                        >
+                            {isSpeaking && currentSpeakingId === 'ai-response' ? 
+                                <VolumeX className="w-4 h-4" /> : 
+                                <Volume2 className="w-4 h-4" />
+                            }
+                        </button>
+                    </div>
+                    <p className="text-sm text-gray-700 bg-white p-3 rounded-lg shadow-sm">{aiResponse}</p>
+                    <div className="mt-3 flex justify-between items-center">
+                        <button
+                            onClick={() => setAiResponse('')}
+                            className="text-xs text-gray-500 hover:text-gray-700"
+                        >
+                            {selectedLanguage === 'hi' && 'बंद करें'}
+                            {selectedLanguage === 'en' && 'Close'}
+                            {selectedLanguage === 'ur' && 'بند کریں'}
+                        </button>
+                        <span className="text-xs text-gray-400">
+                            {selectedLanguage === 'hi' && 'MUrf AI द्वारा संचालित'}
+                            {selectedLanguage === 'en' && 'Powered by MUrf AI'}
+                            {selectedLanguage === 'ur' && 'MUrf AI کے ذریعے'}
+                        </span>
+                    </div>
                 </div>
             )}
         </div>
@@ -480,6 +663,120 @@ const SamudayikAwaaz = () => {
         // You could add a toast notification here
         console.log(successMessage);
     };
+
+    // Voice Conversation History Modal
+    const VoiceHistoryModal = () => (
+        showVoiceHistory && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-3xl p-6 w-full max-w-2xl max-h-[80vh] overflow-hidden">
+                    <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-2xl font-bold text-gray-800 flex items-center space-x-3">
+                            <MessageSquare className="w-8 h-8 text-blue-600" />
+                            <span>
+                                {selectedLanguage === 'hi' && 'आवाज़ बातचीत का इतिहास'}
+                                {selectedLanguage === 'en' && 'Voice Conversation History'}
+                                {selectedLanguage === 'ur' && 'آواز گفتگو کی تاریخ'}
+                            </span>
+                        </h3>
+                        <button
+                            onClick={() => setShowVoiceHistory(false)}
+                            className="p-2 hover:bg-gray-100 rounded-full transition-all"
+                        >
+                            <X className="w-6 h-6" />
+                        </button>
+                    </div>
+
+                    <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+                        {voiceConversationHistory.map((conversation) => (
+                            <div key={conversation.id} className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-4 border border-blue-200">
+                                <div className="flex items-center justify-between mb-3">
+                                    <span className="text-xs text-gray-500">
+                                        {conversation.timestamp.toLocaleString()}
+                                    </span>
+                                    <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">
+                                        {conversation.language === 'hi' && 'हिंदी'}
+                                        {conversation.language === 'en' && 'English'}
+                                        {conversation.language === 'ur' && 'اردو'}
+                                    </span>
+                                </div>
+                                
+                                <div className="space-y-3">
+                                    <div className="bg-gray-50 rounded-lg p-3">
+                                        <div className="flex items-center space-x-2 mb-2">
+                                            <User className="w-4 h-4 text-gray-600" />
+                                            <span className="text-sm font-semibold text-gray-700">
+                                                {selectedLanguage === 'hi' && 'आपने कहा'}
+                                                {selectedLanguage === 'en' && 'You said'}
+                                                {selectedLanguage === 'ur' && 'آپ نے کہا'}
+                                            </span>
+                                        </div>
+                                        <p className="text-sm text-gray-600 italic">"{conversation.userInput}"</p>
+                                    </div>
+                                    
+                                    <div className="bg-blue-50 rounded-lg p-3">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="flex items-center space-x-2">
+                                                <Sparkles className="w-4 h-4 text-blue-600" />
+                                                <span className="text-sm font-semibold text-blue-700">
+                                                    {selectedLanguage === 'hi' && 'जन सहायक'}
+                                                    {selectedLanguage === 'en' && 'Jan Sahayak'}
+                                                    {selectedLanguage === 'ur' && 'جن سہایک'}
+                                                </span>
+                                            </div>
+                                            <button
+                                                onClick={() => speakText(conversation.aiResponse, `history-${conversation.id}`)}
+                                                className={`p-1 rounded-full transition-all ${isSpeaking && currentSpeakingId === `history-${conversation.id}`
+                                                    ? 'bg-red-100 text-red-600'
+                                                    : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+                                                    }`}
+                                            >
+                                                {isSpeaking && currentSpeakingId === `history-${conversation.id}` ? 
+                                                    <VolumeX className="w-4 h-4" /> : 
+                                                    <Volume2 className="w-4 h-4" />
+                                                }
+                                            </button>
+                                        </div>
+                                        <p className="text-sm text-blue-600">{conversation.aiResponse}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                        
+                        {voiceConversationHistory.length === 0 && (
+                            <div className="text-center py-12">
+                                <MessageSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                                <p className="text-gray-500">
+                                    {selectedLanguage === 'hi' && 'कोई आवाज़ बातचीत नहीं मिली'}
+                                    {selectedLanguage === 'en' && 'No voice conversations found'}
+                                    {selectedLanguage === 'ur' && 'کوئی آواز گفتگو نہیں ملی'}
+                                </p>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="mt-6 flex justify-between items-center">
+                        <button
+                            onClick={() => setVoiceConversationHistory([])}
+                            className="text-red-600 hover:text-red-700 flex items-center space-x-2 text-sm font-medium"
+                            disabled={voiceConversationHistory.length === 0}
+                        >
+                            <X className="w-4 h-4" />
+                            <span>
+                                {selectedLanguage === 'hi' && 'इतिहास साफ़ करें'}
+                                {selectedLanguage === 'en' && 'Clear History'}
+                                {selectedLanguage === 'ur' && 'تاریخ صاف کریں'}
+                            </span>
+                        </button>
+                        <span className="text-xs text-gray-400">
+                            {selectedLanguage === 'hi' && 'MUrf AI आवाज़ सहायक'}
+                            {selectedLanguage === 'en' && 'MUrf AI Voice Assistant'}
+                            {selectedLanguage === 'ur' && 'MUrf AI آواز معاون'}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        )
+    );
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 via-green-50 to-purple-50">
@@ -670,6 +967,118 @@ const SamudayikAwaaz = () => {
                 onTabChange={setActiveTab}
             />
 
+            {/* Voice Conversation History Modal */}
+            {showVoiceHistory && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-3xl p-6 w-full max-w-2xl max-h-[80vh] overflow-hidden">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-2xl font-bold text-gray-800 flex items-center space-x-3">
+                                <MessageSquare className="w-8 h-8 text-blue-600" />
+                                <span>
+                                    {selectedLanguage === 'hi' && 'आवाज़ बातचीत का इतिहास'}
+                                    {selectedLanguage === 'en' && 'Voice Conversation History'}
+                                    {selectedLanguage === 'ur' && 'آواز گفتگو کی تاریخ'}
+                                </span>
+                            </h3>
+                            <button
+                                onClick={() => setShowVoiceHistory(false)}
+                                className="p-2 hover:bg-gray-100 rounded-full transition-all"
+                            >
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+                            {voiceConversationHistory.map((conversation) => (
+                                <div key={conversation.id} className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-4 border border-blue-200">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <span className="text-xs text-gray-500">
+                                            {conversation.timestamp.toLocaleString()}
+                                        </span>
+                                        <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">
+                                            {conversation.language === 'hi' && 'हिंदी'}
+                                            {conversation.language === 'en' && 'English'}
+                                            {conversation.language === 'ur' && 'اردو'}
+                                        </span>
+                                    </div>
+                                    
+                                    <div className="space-y-3">
+                                        <div className="bg-white rounded-lg p-3 shadow-sm">
+                                            <div className="flex items-center space-x-2 mb-2">
+                                                <User className="w-4 h-4 text-green-600" />
+                                                <span className="text-sm font-semibold text-green-700">
+                                                    {selectedLanguage === 'hi' && 'आपने कहा'}
+                                                    {selectedLanguage === 'en' && 'You said'}
+                                                    {selectedLanguage === 'ur' && 'آپ نے کہا'}
+                                                </span>
+                                            </div>
+                                            <p className="text-sm text-gray-700">"{conversation.userInput}"</p>
+                                        </div>
+                                        
+                                        <div className="bg-gradient-to-r from-blue-100 to-purple-100 rounded-lg p-3">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div className="flex items-center space-x-2">
+                                                    <Sparkles className="w-4 h-4 text-blue-600" />
+                                                    <span className="text-sm font-semibold text-blue-700">
+                                                        {selectedLanguage === 'hi' && 'जन सहायक'}
+                                                        {selectedLanguage === 'en' && 'Jan Sahayak'}
+                                                        {selectedLanguage === 'ur' && 'جن سہایک'}
+                                                    </span>
+                                                </div>
+                                                <button
+                                                    onClick={() => speakText(conversation.aiResponse, `history-${conversation.id}`)}
+                                                    className={`p-1 rounded-full transition-all ${isSpeaking && currentSpeakingId === `history-${conversation.id}`
+                                                        ? 'bg-red-100 text-red-600'
+                                                        : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+                                                        }`}
+                                                >
+                                                    {isSpeaking && currentSpeakingId === `history-${conversation.id}` ? 
+                                                        <VolumeX className="w-4 h-4" /> : 
+                                                        <Volume2 className="w-4 h-4" />
+                                                    }
+                                                </button>
+                                            </div>
+                                            <p className="text-sm text-gray-700">{conversation.aiResponse}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                            
+                            {voiceConversationHistory.length === 0 && (
+                                <div className="text-center py-12">
+                                    <MessageSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                                    <p className="text-gray-500">
+                                        {selectedLanguage === 'hi' && 'अभी तक कोई आवाज़ बातचीत नहीं हुई'}
+                                        {selectedLanguage === 'en' && 'No voice conversations yet'}
+                                        {selectedLanguage === 'ur' && 'ابھی تک کوئی آواز گفتگو نہیں ہوئی'}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="mt-6 flex justify-between items-center">
+                            <button
+                                onClick={() => setVoiceConversationHistory([])}
+                                className="text-sm text-red-600 hover:text-red-700 flex items-center space-x-1"
+                                disabled={voiceConversationHistory.length === 0}
+                            >
+                                <X className="w-4 h-4" />
+                                <span>
+                                    {selectedLanguage === 'hi' && 'इतिहास साफ़ करें'}
+                                    {selectedLanguage === 'en' && 'Clear History'}
+                                    {selectedLanguage === 'ur' && 'تاریخ صاف کریں'}
+                                </span>
+                            </button>
+                            <span className="text-xs text-gray-400">
+                                {selectedLanguage === 'hi' && 'MUrf AI आवाज़ सहायक'}
+                                {selectedLanguage === 'en' && 'MUrf AI Voice Assistant'}
+                                {selectedLanguage === 'ur' && 'MUrf AI آواز معاون'}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Voice Command Section - Simplified */}
             <div className="max-w-7xl mx-auto px-6 py-6">
                 <div className="card-clean bg-gradient-success text-white p-6">
@@ -741,7 +1150,7 @@ const SamudayikAwaaz = () => {
             {/* Tab Navigation - Improved */}
             <div className="max-w-7xl mx-auto px-6 pb-6">
                 <div className="card-clean p-4">
-                    <div className="grid grid-cols-4 gap-3">
+                    <div className="grid grid-cols-5 gap-3">
                         <TabButton
                             id="home"
                             label={t.home}
@@ -763,6 +1172,11 @@ const SamudayikAwaaz = () => {
                             emoji="📝"
                             count={notifications}
                         />
+                        <TabButton
+                            id="voiceagent"
+                            label={selectedLanguage === 'hi' ? 'आवाज़ सहायक' : selectedLanguage === 'en' ? 'Voice Agent' : 'آواز معاون'}
+                            emoji="🎤"
+                        />
                     </div>
                 </div>
             </div>
@@ -776,6 +1190,7 @@ const SamudayikAwaaz = () => {
                             selectedLanguage={selectedLanguage}
                             onTabChange={setActiveTab}
                             onComplaintSuccess={handleComplaintSuccess}
+                            setUserInfo={setUserInfo}
                         />
                     )}
 
@@ -790,6 +1205,7 @@ const SamudayikAwaaz = () => {
                         <GovernmentSchemes
                             userInfo={userInfo}
                             selectedLanguage={selectedLanguage}
+                            setUserInfo={setUserInfo}
                         />
                     )}
 
@@ -800,6 +1216,17 @@ const SamudayikAwaaz = () => {
                             onTabChange={setActiveTab}
                             onComplaintSuccess={handleComplaintSuccess}
                             setUserInfo={setUserInfo}
+                        />
+                    )}
+
+                    {activeTab === 'voiceagent' && (
+                        <VoiceAgentUI
+                            userInfo={userInfo}
+                            selectedLanguage={selectedLanguage}
+                            onNavigate={setActiveTab}
+                            isVisible={true}
+                            onToggleVisibility={() => setActiveTab('home')}
+                            mode="fullscreen"
                         />
                     )}
                 </div>
@@ -823,6 +1250,59 @@ const SamudayikAwaaz = () => {
                 userInfo={userInfo}
             />
 
+            {/* Enhanced Voice Agent UI - Only show when not in voiceagent tab */}
+            {activeTab !== 'voiceagent' && (
+                <>
+                    <VoiceAgentUI
+                        userInfo={userInfo}
+                        selectedLanguage={selectedLanguage}
+                        onNavigate={setActiveTab}
+                        isVisible={showVoiceAgent}
+                        onToggleVisibility={() => setShowVoiceAgent(!showVoiceAgent)}
+                        mode={voiceAgentMode}
+                    />
+                    
+                    {/* Voice Agent Mode Switcher */}
+                    {!showVoiceAgent && (
+                        <div className="fixed bottom-24 right-6 z-40 flex flex-col space-y-2">
+                            <button
+                                onClick={() => {
+                                    setVoiceAgentMode('overlay');
+                                    setShowVoiceAgent(true);
+                                }}
+                                className="w-12 h-12 bg-blue-500 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-blue-600 transition-all"
+                                title={selectedLanguage === 'hi' ? 'ओवरले मोड' : selectedLanguage === 'en' ? 'Overlay Mode' : 'اوورلے موڈ'}
+                            >
+                                <div className="w-6 h-6 border-2 border-white rounded"></div>
+                            </button>
+                            
+                            <button
+                                onClick={() => {
+                                    setVoiceAgentMode('modal');
+                                    setShowVoiceAgent(true);
+                                }}
+                                className="w-12 h-12 bg-purple-500 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-purple-600 transition-all"
+                                title={selectedLanguage === 'hi' ? 'मोडल मोड' : selectedLanguage === 'en' ? 'Modal Mode' : 'موڈل موڈ'}
+                            >
+                                <div className="w-6 h-6 bg-white/20 rounded backdrop-blur-sm flex items-center justify-center">
+                                    <div className="w-3 h-3 bg-white rounded"></div>
+                                </div>
+                            </button>
+                            
+                            <button
+                                onClick={() => setActiveTab('voiceagent')}
+                                className="w-12 h-12 bg-green-500 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-green-600 transition-all"
+                                title={selectedLanguage === 'hi' ? 'फुल स्क्रीन मोड' : selectedLanguage === 'en' ? 'Fullscreen Mode' : 'فل اسکرین موڈ'}
+                            >
+                                <div className="w-6 h-6 border-2 border-white rounded flex items-center justify-center">
+                                    <div className="w-2 h-2 bg-white rounded"></div>
+                                </div>
+                            </button>
+                        </div>
+                    )}
+                </>
+            )}
+
             {/* Bottom Action Bar - Persistent */}
             <div className="fixed bottom-0 left-0 right-0 bg-primary border-t border-gray-200 shadow-clean-xl">
                 <div className="max-w-7xl mx-auto px-6 py-4">
@@ -835,18 +1315,30 @@ const SamudayikAwaaz = () => {
                             <span className="font-semibold">1800-180-1551</span>
                         </a>
                         
-                        <button
-                            onClick={toggleVoiceRecording}
-                            className={`btn-primary flex items-center space-x-2 ${isListening
-                                ? 'bg-red-600 hover:bg-red-700 animate-pulse'
-                                : 'bg-green-600 hover:bg-green-700'
-                                }`}
-                        >
-                            <span className="text-2xl">{isListening ? '🔴' : '🎤'}</span>
-                            <span className="font-semibold">
-                                {isListening ? t.listening : t.startVoice}
-                            </span>
-                        </button>
+                        <div className="flex items-center space-x-2">
+                            <button
+                                onClick={() => {
+                                    setVoiceAgentMode('modal');
+                                    setShowVoiceAgent(true);
+                                }}
+                                className="btn-secondary bg-white text-primary hover:bg-gray-50 flex items-center space-x-2"
+                            >
+                                <span className="text-xl">🎤</span>
+                                <span className="font-medium">
+                                    {selectedLanguage === 'hi' ? 'मोडल' : selectedLanguage === 'en' ? 'Modal' : 'موڈل'}
+                                </span>
+                            </button>
+                            
+                            <button
+                                onClick={() => setActiveTab('voiceagent')}
+                                className="btn-primary bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 flex items-center space-x-2"
+                            >
+                                <span className="text-2xl">🎤</span>
+                                <span className="font-semibold">
+                                    {selectedLanguage === 'hi' ? 'आवाज़ सहायक' : selectedLanguage === 'en' ? 'Voice Agent' : 'آواز معاون'}
+                                </span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
